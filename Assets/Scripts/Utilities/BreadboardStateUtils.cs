@@ -16,56 +16,33 @@ public class BreadboardStateUtils : MonoBehaviour
     private int sevenSegCounter = 0;
     private int icCounter = 0;
 
+    [SerializeField] private GameObject wireComponent;
+    [SerializeField] private GameObject ledComponent;
+    [SerializeField] private GameObject sevenSegmentComponent;
+    [SerializeField] private GameObject icComponent;
+
     private void Awake()
     {
         Instance = this;
     }
 
-    //wire
-    //startNode
-    //endNode
-    //color
+    // Wire: startNode, endNode, color
     public void AddWire(string startNode, string endNode, string color)
     {
         try
         {
-            // Get the current breadboard state JSON string
-            string currentState = myBreadboardController.breadboardState;
-
-            // Initialize with default state if empty
-            if (string.IsNullOrEmpty(currentState))
-                currentState = @"{ ""components"": {} }";
-
-
-            // Parse the JSON structure
-            JObject state = JObject.Parse(currentState);
-
-            // Ensure components object exists
-            JObject components = (JObject)state["components"] ?? new JObject();
-            state["components"] = components;
-
-            // Generate unique wire ID
             wireCounter++;
             string wireId = $"wire{wireCounter}";
 
-            // Create new wire entry
-            JObject wireEntry = new JObject
+            BreadboardComponentData wire = new BreadboardComponentData
             {
-                ["startNode"] = startNode,
-                ["endNode"] = endNode,
-                ["color"] = color
+                type = "wire",
+                startNode = startNode,
+                endNode = endNode,
+                color = color
             };
 
-            // Add wire to components
-            components[wireId] = wireEntry;
-            state["components"] = components;
-
-            // Convert back to JSON string
-            string updatedState = state.ToString(Newtonsoft.Json.Formatting.None);
-
-
-            // Update the breadboard state
-            myBreadboardController.CmdUpdateBreadboardState(updatedState);
+            myBreadboardController.CmdAddComponent(wireId, wire);
         }
         catch (Exception e)
         {
@@ -73,109 +50,54 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-
-    //led
-    //anode
-    //cathode
-    //color
+    // LED: anode, cathode, color
     public void AddLED(string anode, string cathode, string color)
     {
         try
         {
-            // Get the current breadboard state JSON string
-            string currentState = myBreadboardController.breadboardState;
-
-            // Initialize with default state if empty
-            if (string.IsNullOrEmpty(currentState))
-                currentState = @"{ ""components"": {} }";
-
-
-            // Parse the JSON structure
-            JObject state = JObject.Parse(currentState);
-
-            // Ensure components object exists
-            JObject components = (JObject)state["components"] ?? new JObject();
-            state["components"] = components;
-
             ledCounter++;
             string ledId = $"led{ledCounter}";
 
-            // Create new wire entry
-            JObject ledEntry = new JObject
+            BreadboardComponentData led = new BreadboardComponentData
             {
-                ["anode"] = anode,
-                ["cathode"] = cathode,
-                ["color"] = color
+                type = "led",
+                anode = anode,
+                cathode = cathode,
+                color = color
             };
 
-            // Add wire to components
-            components[ledId] = ledEntry;
-            state["components"] = components;
-
-            // Convert back to JSON string
-            string updatedState = state.ToString(Newtonsoft.Json.Formatting.None);
-
-
-            // Update the breadboard state
-            myBreadboardController.CmdUpdateBreadboardState(updatedState);
+            myBreadboardController.CmdAddComponent(ledId, led);
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error adding led: {e.Message}");
+            Debug.LogError($"Error adding LED: {e.Message}");
         }
     }
 
-
-    //seven segment
-    //nodeB
-    // will always be allowed when called
+    // Seven Segment: nodeB
     public void AddSevenSegment(string nodeB)
     {
         try
         {
-            // Get the current breadboard state JSON string
-            string currentState = myBreadboardController.breadboardState;
-
-            // Initialize with default state if empty
-            if (string.IsNullOrEmpty(currentState))
-                currentState = @"{ ""components"": {} }";
-
-
-            // Parse the JSON structure
-            JObject state = JObject.Parse(currentState);
-
-            // Ensure components object exists
-            JObject components = (JObject)state["components"] ?? new JObject();
-            state["components"] = components;
-
             sevenSegCounter++;
             string sevenSegId = $"sevenSeg{sevenSegCounter}";
 
-            // Create new wire entry
-            JObject sevenSegEntry = new JObject
+            BreadboardComponentData sevenSeg = new BreadboardComponentData
             {
-                ["nodeB"] = nodeB,
-                ["nodeA"] = GetNodeNameOffset(nodeB, 1, 0),
-                ["nodeGnd1"] = GetNodeNameOffset(nodeB, 2, 0),
-                ["nodeF"] = GetNodeNameOffset(nodeB, 3, 0),
-                ["nodeG"] = GetNodeNameOffset(nodeB, 4, 0),
-
-                ["nodeDP"] = GetNodeNameOffset(nodeB, 0, 5),
-                ["nodeC"] = GetNodeNameOffset(nodeB, 1, 5),
-                ["nodeGnd2"] = GetNodeNameOffset(nodeB, 2, 5),
-                ["nodeD"] = GetNodeNameOffset(nodeB, 3, 5),
-                ["nodeE"] = GetNodeNameOffset(nodeB, 4, 5),
+                type = "sevenSeg",
+                nodeB = nodeB,
+                nodeA = GetNodeNameOffset(nodeB, 1, 0),
+                nodeGnd1 = GetNodeNameOffset(nodeB, 2, 0),
+                nodeF = GetNodeNameOffset(nodeB, 3, 0),
+                nodeG = GetNodeNameOffset(nodeB, 4, 0),
+                nodeDP = GetNodeNameOffset(nodeB, 0, 5),
+                nodeC = GetNodeNameOffset(nodeB, 1, 5),
+                nodeGnd2 = GetNodeNameOffset(nodeB, 2, 5),
+                nodeD = GetNodeNameOffset(nodeB, 3, 5),
+                nodeE = GetNodeNameOffset(nodeB, 4, 5)
             };
 
-            // Add wire to components
-            components[sevenSegId] = sevenSegEntry;
-            state["components"] = components;
-
-            // Convert back to JSON string
-            string updatedState = state.ToString(Newtonsoft.Json.Formatting.None);
-
-            // Update the breadboard state
-            myBreadboardController.CmdUpdateBreadboardState(updatedState);
+            myBreadboardController.CmdAddComponent(sevenSegId, sevenSeg);
         }
         catch (Exception e)
         {
@@ -183,64 +105,37 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    // ic
-    // nodeB
-    // will always be allowed when called
+    // IC: pin1, type
     public void AddIC(string pin1, string type)
     {
         try
         {
-            // Get the current breadboard state JSON string
-            string currentState = myBreadboardController.breadboardState;
-
-            // Initialize with default state if empty
-            if (string.IsNullOrEmpty(currentState))
-                currentState = @"{ ""components"": {} }";
-
-
-            // Parse the JSON structure
-            JObject state = JObject.Parse(currentState);
-
-            // Ensure components object exists
-            JObject components = (JObject)state["components"] ?? new JObject();
-            state["components"] = components;
-
             icCounter++;
             string icId = $"ic{icCounter}";
 
-            // Create new wire entry
-            JObject icEntry = new JObject
+            BreadboardComponentData ic = new BreadboardComponentData
             {
-                ["type"] = type,
-
-                ["pin1"] = pin1,
-                ["pin2"] = GetNodeNameOffset(pin1, 1, 0),
-                ["pin3"] = GetNodeNameOffset(pin1, 2, 0),
-                ["pin4"] = GetNodeNameOffset(pin1, 3, 0),
-                ["pin5"] = GetNodeNameOffset(pin1, 4, 0),
-                ["pin6"] = GetNodeNameOffset(pin1, 5, 0),
-                ["pin7"] = GetNodeNameOffset(pin1, 6, 0),
-                ["pin8"] = GetNodeNameOffset(pin1, 7, 0),
-
-                ["pin9"] = GetNodeNameOffset(pin1, 7, 1),
-                ["pin10"] = GetNodeNameOffset(pin1, 6, 1),
-                ["pin11"] = GetNodeNameOffset(pin1, 5, 1),
-                ["pin12"] = GetNodeNameOffset(pin1, 4, 1),
-                ["pin13"] = GetNodeNameOffset(pin1, 3, 1),
-                ["pin14"] = GetNodeNameOffset(pin1, 2, 1),
-                ["pin15"] = GetNodeNameOffset(pin1, 1, 1),
-                ["pin16"] = GetNodeNameOffset(pin1, 0, 1),
+                type = "ic",
+                icType = type,
+                pin1 = pin1,
+                pin2 = GetNodeNameOffset(pin1, 1, 0),
+                pin3 = GetNodeNameOffset(pin1, 2, 0),
+                pin4 = GetNodeNameOffset(pin1, 3, 0),
+                pin5 = GetNodeNameOffset(pin1, 4, 0),
+                pin6 = GetNodeNameOffset(pin1, 5, 0),
+                pin7 = GetNodeNameOffset(pin1, 6, 0),
+                pin8 = GetNodeNameOffset(pin1, 7, 0),
+                pin9 = GetNodeNameOffset(pin1, 7, 1),
+                pin10 = GetNodeNameOffset(pin1, 6, 1),
+                pin11 = GetNodeNameOffset(pin1, 5, 1),
+                pin12 = GetNodeNameOffset(pin1, 4, 1),
+                pin13 = GetNodeNameOffset(pin1, 3, 1),
+                pin14 = GetNodeNameOffset(pin1, 2, 1),
+                pin15 = GetNodeNameOffset(pin1, 1, 1),
+                pin16 = GetNodeNameOffset(pin1, 0, 1)
             };
 
-            // Add wire to components
-            components[icId] = icEntry;
-            state["components"] = components;
-
-            // Convert back to JSON string
-            string updatedState = state.ToString(Newtonsoft.Json.Formatting.None);
-
-            // Update the breadboard state
-            myBreadboardController.CmdUpdateBreadboardState(updatedState);
+            myBreadboardController.CmdAddComponent(icId, ic);
         }
         catch (Exception e)
         {
@@ -252,69 +147,42 @@ public class BreadboardStateUtils : MonoBehaviour
     {
         try
         {
-            // Get current breadboard state
-            string currentState = myBreadboardController.breadboardState;
-            if (string.IsNullOrEmpty(currentState))
-                return;
-
-            // Parse JSON structure
-            JObject state = JObject.Parse(currentState);
-            JObject components = (JObject)state["components"];
-
-            if (components == null)
-                return;
-
             List<string> componentsToRemove = new List<string>();
-            // Collect nodes to clear occupancy
             HashSet<string> nodesToClear = new HashSet<string>();
 
             // Check each component's properties for the target node
-            foreach (JProperty componentProp in components.Properties().ToList())
+            foreach (var kvp in myBreadboardController.breadboardComponents)
             {
-                JObject component = (JObject)componentProp.Value;
+                string componentId = kvp.Key;
+                BreadboardComponentData component = kvp.Value;
                 bool shouldRemove = false;
 
-                foreach (JProperty prop in component.Properties())
+                // Check if this component uses the target node
+                if (NodeMatchesComponent(node, component))
                 {
-                    // Check if property value matches the target node
-                    if (prop.Value.Type == JTokenType.String && (string)prop.Value == node)
+                    shouldRemove = true;
+                    // Collect all nodes from this component to clear occupancy
+                    HashSet<string> componentNodes = GetAllComponentNodes(component);
+                    foreach (string nodeToAdd in componentNodes)
                     {
-                        shouldRemove = true;
-                        break; // No need to check other properties of this component
+                        if (!string.IsNullOrEmpty(nodeToAdd))
+                        {
+                            nodesToClear.Add(nodeToAdd);
+                        }
                     }
                 }
 
-                // If this component should be removed, collect all its nodes
                 if (shouldRemove)
                 {
-                    componentsToRemove.Add(componentProp.Name);
-
-                    // Collect all nodes from this component
-                    foreach (JProperty prop in component.Properties())
-                    {
-                        if (prop.Value.Type == JTokenType.String && prop.Name != "color" && prop.Name != "type")
-                        {
-                            string nodeName = (string)prop.Value;
-                            if (!string.IsNullOrEmpty(nodeName))
-                            {
-                                nodesToClear.Add(nodeName);
-                            }
-                        }
-                    }
+                    componentsToRemove.Add(componentId);
                 }
             }
 
             // Remove identified components
-            foreach (string componentName in componentsToRemove)
+            foreach (string componentId in componentsToRemove)
             {
-                components.Remove(componentName);
+                myBreadboardController.CmdRemoveComponent(componentId);
             }
-
-            state["components"] = components;
-
-            // Update breadboard state
-            string updatedState = state.ToString(Newtonsoft.Json.Formatting.None);
-            myBreadboardController.CmdUpdateBreadboardState(updatedState);
 
             // Clear occupancy of affected nodes
             ClearOccupancyOfNodes(myBreadboardController, nodesToClear);
@@ -323,6 +191,93 @@ public class BreadboardStateUtils : MonoBehaviour
         {
             Debug.LogError($"Error removing components with node {node}: {e.Message}");
         }
+    }
+
+    // Check if a node is used by a component
+    private bool NodeMatchesComponent(string node, BreadboardComponentData component)
+    {
+        // Check based on component type
+        switch (component.type)
+        {
+            case "wire":
+                return component.startNode == node || component.endNode == node;
+                
+            case "led":
+                return component.anode == node || component.cathode == node;
+                
+            case "sevenSeg":
+                return component.nodeA == node || component.nodeB == node ||
+                       component.nodeC == node || component.nodeD == node ||
+                       component.nodeE == node || component.nodeF == node ||
+                       component.nodeG == node || component.nodeDP == node ||
+                       component.nodeGnd1 == node || component.nodeGnd2 == node;
+                       
+            case "ic":
+                return component.pin1 == node || component.pin2 == node ||
+                       component.pin3 == node || component.pin4 == node ||
+                       component.pin5 == node || component.pin6 == node ||
+                       component.pin7 == node || component.pin8 == node ||
+                       component.pin9 == node || component.pin10 == node ||
+                       component.pin11 == node || component.pin12 == node ||
+                       component.pin13 == node || component.pin14 == node ||
+                       component.pin15 == node || component.pin16 == node;
+                       
+            default:
+                return false;
+        }
+    }
+
+    // Get all nodes used by a component
+    private HashSet<string> GetAllComponentNodes(BreadboardComponentData component)
+    {
+        HashSet<string> nodes = new HashSet<string>();
+        
+        switch (component.type)
+        {
+            case "wire":
+                if (!string.IsNullOrEmpty(component.startNode)) nodes.Add(component.startNode);
+                if (!string.IsNullOrEmpty(component.endNode)) nodes.Add(component.endNode);
+                break;
+                
+            case "led":
+                if (!string.IsNullOrEmpty(component.anode)) nodes.Add(component.anode);
+                if (!string.IsNullOrEmpty(component.cathode)) nodes.Add(component.cathode);
+                break;
+                
+            case "sevenSeg":
+                if (!string.IsNullOrEmpty(component.nodeA)) nodes.Add(component.nodeA);
+                if (!string.IsNullOrEmpty(component.nodeB)) nodes.Add(component.nodeB);
+                if (!string.IsNullOrEmpty(component.nodeC)) nodes.Add(component.nodeC);
+                if (!string.IsNullOrEmpty(component.nodeD)) nodes.Add(component.nodeD);
+                if (!string.IsNullOrEmpty(component.nodeE)) nodes.Add(component.nodeE);
+                if (!string.IsNullOrEmpty(component.nodeF)) nodes.Add(component.nodeF);
+                if (!string.IsNullOrEmpty(component.nodeG)) nodes.Add(component.nodeG);
+                if (!string.IsNullOrEmpty(component.nodeDP)) nodes.Add(component.nodeDP);
+                if (!string.IsNullOrEmpty(component.nodeGnd1)) nodes.Add(component.nodeGnd1);
+                if (!string.IsNullOrEmpty(component.nodeGnd2)) nodes.Add(component.nodeGnd2);
+                break;
+                
+            case "ic":
+                if (!string.IsNullOrEmpty(component.pin1)) nodes.Add(component.pin1);
+                if (!string.IsNullOrEmpty(component.pin2)) nodes.Add(component.pin2);
+                if (!string.IsNullOrEmpty(component.pin3)) nodes.Add(component.pin3);
+                if (!string.IsNullOrEmpty(component.pin4)) nodes.Add(component.pin4);
+                if (!string.IsNullOrEmpty(component.pin5)) nodes.Add(component.pin5);
+                if (!string.IsNullOrEmpty(component.pin6)) nodes.Add(component.pin6);
+                if (!string.IsNullOrEmpty(component.pin7)) nodes.Add(component.pin7);
+                if (!string.IsNullOrEmpty(component.pin8)) nodes.Add(component.pin8);
+                if (!string.IsNullOrEmpty(component.pin9)) nodes.Add(component.pin9);
+                if (!string.IsNullOrEmpty(component.pin10)) nodes.Add(component.pin10);
+                if (!string.IsNullOrEmpty(component.pin11)) nodes.Add(component.pin11);
+                if (!string.IsNullOrEmpty(component.pin12)) nodes.Add(component.pin12);
+                if (!string.IsNullOrEmpty(component.pin13)) nodes.Add(component.pin13);
+                if (!string.IsNullOrEmpty(component.pin14)) nodes.Add(component.pin14);
+                if (!string.IsNullOrEmpty(component.pin15)) nodes.Add(component.pin15);
+                if (!string.IsNullOrEmpty(component.pin16)) nodes.Add(component.pin16);
+                break;
+        }
+        
+        return nodes;
     }
 
     private void ClearOccupancyOfNodes(BreadboardController bc, HashSet<string> nodeNames)
@@ -341,30 +296,10 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    /////////////////////////////////////////////
-    ///VISUALIZATION
-    /////////////////////////////////////////////
-    ///
-
-    [SerializeField] private GameObject wireComponent;
-    [SerializeField] private GameObject ledComponent;
-    [SerializeField] private GameObject sevenSegmentComponent;
-    [SerializeField] private GameObject icComponent;
-
-    //called onstatechanged or manually by spectators
+    // Visualization Methods
     public void VisualizeBreadboard(BreadboardController bc)
     {
-        // Parse the breadboard state
-        string currentState = bc.breadboardState;
-        if (string.IsNullOrEmpty(currentState))
-        {
-            currentState = @"{ ""components"": {} }";
-        }
-
-        Debug.Log($"Visualizing breadboard with state: {currentState}");
-
-        JObject state = JObject.Parse(currentState);
-        JToken components = state["components"] ?? new JObject();
+        Debug.Log("Visualizing breadboard");
 
         // Create/find Components parent
         Transform componentsParent = GetOrCreateComponentsParent(bc);
@@ -376,16 +311,18 @@ public class BreadboardStateUtils : MonoBehaviour
         ClearComponentsParent(componentsParent);
 
         // Collect all nodes used by components
-        HashSet<string> occupiedNodes = CollectOccupiedNodes(components);
+        HashSet<string> occupiedNodes = CollectOccupiedNodes(bc.breadboardComponents);
         MarkOccupiedNodes(bc, occupiedNodes);
 
+        // Convert SyncDictionary to JSON for simulation
+        string breadboardStateJson = ConvertStateToJson(bc.breadboardComponents);
 
         // Run simulation
         var simulator = BreadboardSimulator.Instance;
         if (simulator != null)
         {
             Debug.Log("Running breadboard simulation...");
-            var result = simulator.Run(currentState);
+            var result = simulator.Run(breadboardStateJson);
 
             // Handle the result
             if (result.Errors.Count > 0)
@@ -397,15 +334,13 @@ public class BreadboardStateUtils : MonoBehaviour
                 Debug.Log("Simulation completed successfully");
             }
 
-            //After simulation
-
-            //Update LED
-            // Create new visual representations by type
-            foreach (JProperty componentProp in components)
+            // Create visual components
+            foreach (var kvp in bc.breadboardComponents)
             {
-                HandleComponentVisualization(componentProp, componentsParent, result.ComponentStates);
+                string componentKey = kvp.Key;
+                BreadboardComponentData component = kvp.Value;
+                HandleComponentVisualization(componentKey, component, componentsParent, result.ComponentStates);
             }
-
         }
         else
         {
@@ -413,6 +348,73 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
+    // Convert SyncDictionary to JSON format expected by simulator
+    private string ConvertStateToJson(SyncDictionary<string, BreadboardComponentData> components)
+    {
+        JObject state = new JObject();
+        JObject componentsObj = new JObject();
+
+        foreach (var kvp in components)
+        {
+            string componentKey = kvp.Key;
+            BreadboardComponentData component = kvp.Value;
+
+            JObject componentObj = new JObject();
+
+            switch (component.type)
+            {
+                case "wire":
+                    componentObj["startNode"] = component.startNode;
+                    componentObj["endNode"] = component.endNode;
+                    componentObj["color"] = component.color;
+                    break;
+
+                case "led":
+                    componentObj["anode"] = component.anode;
+                    componentObj["cathode"] = component.cathode;
+                    componentObj["color"] = component.color;
+                    break;
+
+                case "sevenSeg":
+                    componentObj["nodeA"] = component.nodeA;
+                    componentObj["nodeB"] = component.nodeB;
+                    componentObj["nodeC"] = component.nodeC;
+                    componentObj["nodeD"] = component.nodeD;
+                    componentObj["nodeE"] = component.nodeE;
+                    componentObj["nodeF"] = component.nodeF;
+                    componentObj["nodeG"] = component.nodeG;
+                    componentObj["nodeDP"] = component.nodeDP;
+                    componentObj["nodeGnd1"] = component.nodeGnd1;
+                    componentObj["nodeGnd2"] = component.nodeGnd2;
+                    break;
+
+                case "ic":
+                    componentObj["type"] = component.icType;
+                    componentObj["pin1"] = component.pin1;
+                    componentObj["pin2"] = component.pin2;
+                    componentObj["pin3"] = component.pin3;
+                    componentObj["pin4"] = component.pin4;
+                    componentObj["pin5"] = component.pin5;
+                    componentObj["pin6"] = component.pin6;
+                    componentObj["pin7"] = component.pin7;
+                    componentObj["pin8"] = component.pin8;
+                    componentObj["pin9"] = component.pin9;
+                    componentObj["pin10"] = component.pin10;
+                    componentObj["pin11"] = component.pin11;
+                    componentObj["pin12"] = component.pin12;
+                    componentObj["pin13"] = component.pin13;
+                    componentObj["pin14"] = component.pin14;
+                    componentObj["pin15"] = component.pin15;
+                    componentObj["pin16"] = component.pin16;
+                    break;
+            }
+
+            componentsObj[componentKey] = componentObj;
+        }
+
+        state["components"] = componentsObj;
+        return state.ToString(Newtonsoft.Json.Formatting.None);
+    }
 
     private Transform GetOrCreateComponentsParent(BreadboardController bc)
     {
@@ -436,81 +438,78 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    private void HandleComponentVisualization(JProperty componentProp, Transform componentsParent, Dictionary<string, object> componentStates)
+    private void HandleComponentVisualization(string componentKey, BreadboardComponentData component, Transform componentsParent, Dictionary<string, object> componentStates)
     {
-        string componentKey = componentProp.Name;
-        JObject componentData = (JObject)componentProp.Value;
-
-        if (componentKey.StartsWith("wire"))
+        switch (component.type)
         {
-            CreateWireComponent(componentData, componentsParent, componentKey);
-        }
-        else if (componentKey.StartsWith("led"))
-        {
-            var ledState = componentStates[componentKey];
-            bool isLedOn = false;
+            case "wire":
+                CreateWireComponent(component, componentsParent, componentKey);
+                break;
 
-            // Use reflection to get the 'isOn' property from the anonymous type
-            if (ledState != null)
-            {
-                var prop = ledState.GetType().GetProperty("isOn");
-                if (prop != null)
+            case "led":
+                bool isLedOn = false;
+
+                // Try to get LED state from simulation results
+                if (componentStates.TryGetValue(componentKey, out object ledState))
                 {
-                    isLedOn = (bool)prop.GetValue(ledState);
-                }
-            }
-
-            CreateLEDComponent(componentData, componentsParent, componentKey, isLedOn);
-        }
-        else if (componentKey.StartsWith("sevenSeg"))
-        {
-            Dictionary<string, bool> segments = new Dictionary<string, bool>();
-
-            try
-            {
-                // Convert the state to JObject for easier access
-                JObject segmentState = JObject.FromObject(componentStates[componentKey]);
-
-                // Access the segments property
-                JObject segmentsObj = segmentState["segments"] as JObject;
-
-                if (segmentsObj != null)
-                {
-                    // Extract each segment's boolean value
-                    foreach (var prop in segmentsObj.Properties())
+                    // Use reflection to get the 'isOn' property from the anonymous type
+                    if (ledState != null)
                     {
-                        segments[prop.Name] = prop.Value.Value<bool>();
+                        var prop = ledState.GetType().GetProperty("isOn");
+                        if (prop != null)
+                        {
+                            isLedOn = (bool)prop.GetValue(ledState);
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"Error parsing seven segment state: {ex.Message}");
-            }
 
-            Debug.Log($"Segments: {string.Join(", ", segments.Select(kv => $"{kv.Key}={kv.Value}"))}");
+                CreateLEDComponent(component, componentsParent, componentKey, isLedOn);
+                break;
 
-            // Create the seven segment component
-            CreateSevenSegmentComponent(componentData, componentsParent, componentKey, segments);
-        }
-        else if (componentKey.StartsWith("ic"))
-        {
-            CreateICComponent(componentData, componentsParent, componentKey);
-        }
+            case "sevenSeg":
+                Dictionary<string, bool> segments = new Dictionary<string, bool>();
 
-        else
-        {
-            Debug.LogWarning($"Unhandled component type: {componentKey}");
+                try
+                {
+                    if (componentStates.TryGetValue(componentKey, out object segState))
+                    {
+                        // Convert the state to JObject for easier access
+                        JObject segmentState = JObject.FromObject(segState);
+
+                        // Access the segments property
+                        JObject segmentsObj = segmentState["segments"] as JObject;
+
+                        if (segmentsObj != null)
+                        {
+                            // Extract each segment's boolean value
+                            foreach (var prop in segmentsObj.Properties())
+                            {
+                                segments[prop.Name] = prop.Value.Value<bool>();
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error parsing seven segment state: {ex.Message}");
+                }
+
+                CreateSevenSegmentComponent(component, componentsParent, componentKey, segments);
+                break;
+
+            case "ic":
+                CreateICComponent(component, componentsParent, componentKey);
+                break;
+
+            default:
+                Debug.LogWarning($"Unhandled component type: {component.type} for {componentKey}");
+                break;
         }
     }
 
-    private void CreateWireComponent(JObject componentData, Transform parent, string name)
+    private void CreateWireComponent(BreadboardComponentData wire, Transform parent, string name)
     {
-        string startNode = componentData.Value<string>("startNode");
-        string endNode = componentData.Value<string>("endNode");
-        string color = componentData.Value<string>("color");
-
-        if (string.IsNullOrEmpty(startNode) || string.IsNullOrEmpty(endNode))
+        if (string.IsNullOrEmpty(wire.startNode) || string.IsNullOrEmpty(wire.endNode))
         {
             Debug.LogWarning("Invalid wire configuration");
             return;
@@ -522,7 +521,7 @@ public class BreadboardStateUtils : MonoBehaviour
 
         if (wireComponentScript != null)
         {
-            wireComponentScript.Initialize(startNode, endNode, color, parent.parent);
+            wireComponentScript.Initialize(wire.startNode, wire.endNode, wire.color, parent.parent);
         }
         else
         {
@@ -531,13 +530,9 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    private void CreateLEDComponent(JObject componentData, Transform parent, string name, bool isOn)
+    private void CreateLEDComponent(BreadboardComponentData led, Transform parent, string name, bool isOn)
     {
-        string anode = componentData.Value<string>("anode");
-        string cathode = componentData.Value<string>("cathode");
-        string color = componentData.Value<string>("color");
-
-        if (string.IsNullOrEmpty(anode) || string.IsNullOrEmpty(cathode))
+        if (string.IsNullOrEmpty(led.anode) || string.IsNullOrEmpty(led.cathode))
         {
             Debug.LogWarning("Invalid LED configuration");
             return;
@@ -549,7 +544,7 @@ public class BreadboardStateUtils : MonoBehaviour
 
         if (ledComponentScript != null)
         {
-            ledComponentScript.Initialize(anode, cathode, color, parent.parent, isOn);
+            ledComponentScript.Initialize(led.anode, led.cathode, led.color, parent.parent, isOn);
         }
         else
         {
@@ -558,12 +553,10 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    private void CreateSevenSegmentComponent(JObject componentData, Transform parent, string name, Dictionary<string, bool> segments)
+    private void CreateSevenSegmentComponent(BreadboardComponentData sevenSeg, Transform parent, string name, Dictionary<string, bool> segments)
     {
         Debug.Log("CREATED 7 SEG");
-        string nodeB = componentData.Value<string>("nodeB");
-
-        if (string.IsNullOrEmpty(nodeB))
+        if (string.IsNullOrEmpty(sevenSeg.nodeB))
         {
             Debug.LogWarning("Invalid SEVEN SEGMENT configuration");
             return;
@@ -575,7 +568,7 @@ public class BreadboardStateUtils : MonoBehaviour
 
         if (sevenSegmentScript != null)
         {
-            sevenSegmentScript.Initialize(nodeB, parent.parent, segments);
+            sevenSegmentScript.Initialize(sevenSeg.nodeB, parent.parent, segments);
         }
         else
         {
@@ -584,13 +577,10 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    private void CreateICComponent(JObject componentData, Transform parent, string name)
+    private void CreateICComponent(BreadboardComponentData ic, Transform parent, string name)
     {
         Debug.Log("CREATED IC component");
-        string type = componentData.Value<string>("type");
-        string pin1 = componentData.Value<string>("pin1");
-
-        if (string.IsNullOrEmpty(pin1) || string.IsNullOrEmpty(type))
+        if (string.IsNullOrEmpty(ic.pin1) || string.IsNullOrEmpty(ic.icType))
         {
             Debug.LogWarning("Invalid IC configuration");
             return;
@@ -602,7 +592,7 @@ public class BreadboardStateUtils : MonoBehaviour
 
         if (icScript != null)
         {
-            icScript.Initialize(pin1, type, parent.parent);
+            icScript.Initialize(ic.pin1, ic.icType, parent.parent);
         }
         else
         {
@@ -611,17 +601,7 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-
-
-    private string GetNodeNameOffset(string nodeName, int rowOffset, int columnOffset)
-    {
-        return GetStringNameOffset(nodeName, rowOffset, columnOffset, 1, 30, 'A', 'J');
-    }
-
-
-    // NODE UTILS
-
-    // Method to clear all node occupancies
+    // Node Utils
     private void ClearAllNodeOccupancies(BreadboardController bc)
     {
         Transform breadboardTransform = bc.transform.Find("Breadboard");
@@ -636,7 +616,6 @@ public class BreadboardStateUtils : MonoBehaviour
         ClearNodeGroupOccupancies(breadboardTransform.Find("NodesRight"));
     }
 
-    // Helper to clear node groups
     private void ClearNodeGroupOccupancies(Transform nodeGroup)
     {
         if (nodeGroup == null) return;
@@ -654,25 +633,20 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    // Method to collect all node names from components
-    private HashSet<string> CollectOccupiedNodes(JToken components)
+    private HashSet<string> CollectOccupiedNodes(SyncDictionary<string, BreadboardComponentData> components)
     {
         HashSet<string> nodeNames = new HashSet<string>();
 
-        foreach (JProperty componentProp in components)
+        foreach (var kvp in components)
         {
-            JObject componentData = (JObject)componentProp.Value;
-
-            // Collect all string property values as potential node names
-            foreach (JProperty prop in componentData.Properties())
+            BreadboardComponentData component = kvp.Value;
+            HashSet<string> componentNodes = GetAllComponentNodes(component);
+            
+            foreach (string nodeName in componentNodes)
             {
-                if (prop.Value.Type == JTokenType.String && prop.Name != "color" && prop.Name != "type")
+                if (!string.IsNullOrEmpty(nodeName))
                 {
-                    string nodeName = componentData.Value<string>(prop.Name);
-                    if (!string.IsNullOrEmpty(nodeName))
-                    {
-                        nodeNames.Add(nodeName);
-                    }
+                    nodeNames.Add(nodeName);
                 }
             }
         }
@@ -680,7 +654,6 @@ public class BreadboardStateUtils : MonoBehaviour
         return nodeNames;
     }
 
-    //Method to mark all occupied nodes
     private void MarkOccupiedNodes(BreadboardController bc, HashSet<string> nodeNames)
     {
         Transform breadboardTransform = bc.transform.Find("Breadboard");
@@ -697,7 +670,6 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
-    // Helper to find a node by its name
     private Node FindNodeByName(Transform breadboardTransform, string nodeName)
     {
         // Determine if it's a power rail node or a regular node
@@ -734,22 +706,12 @@ public class BreadboardStateUtils : MonoBehaviour
         return null;
     }
 
+    // Utils
+    private string GetNodeNameOffset(string nodeName, int rowOffset, int columnOffset)
+    {
+        return GetStringNameOffset(nodeName, rowOffset, columnOffset, 1, 30, 'A', 'J');
+    }
 
-    // UTILITIES
-
-
-    /// <summary>
-    /// Calculates a new string name based on a starting string name and row/column offsets.
-    /// Assumes the string name follows the format "NumberLetter" (e.g., "1A", "15B").
-    /// </summary>
-    /// <param name="startName">The starting string name.</param>
-    /// <param name="rowOffset">The offset to apply to the number part of the name.</param>
-    /// <param name="columnOffset">The offset to apply to the letter part of the name.</param>
-    /// <param name="minNumber">The minimum allowed numerical value.</param>
-    /// <param name="maxNumber">The maximum allowed numerical value.</param>
-    /// <param name="minLetter">The minimum allowed letter (char) value.</param>
-    /// <param name="maxLetter">The maximum allowed letter (char) value.</param>
-    /// <returns>The new string name, or null if the calculation results in an invalid name.</returns>
     public static string GetStringNameOffset(string startName, int rowOffset, int columnOffset, int minNumber, int maxNumber, char minLetter, char maxLetter)
     {
         // Use regular expression to extract the number and letter
@@ -781,5 +743,4 @@ public class BreadboardStateUtils : MonoBehaviour
             return null;
         }
     }
-
 }

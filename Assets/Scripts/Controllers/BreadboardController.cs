@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using System;
+using Newtonsoft.Json.Linq;
 
 namespace Mirror
 {
@@ -10,11 +11,8 @@ namespace Mirror
     {
         [SerializeField] private bool allowInstructor = false;
 
-        [TextArea(10,20)]
-        [SyncVar]
-        public string breadboardState = "{ \"components\": {} }";
-        private string previousBreadboardState;
-
+        public readonly SyncDictionary<string, BreadboardComponentData> breadboardComponents = new SyncDictionary<string, BreadboardComponentData>();
+        
         [SyncVar]
         public bool isInSimMode = false;
         private bool prevIsInSimMode = false;
@@ -69,6 +67,9 @@ namespace Mirror
             prevIsPortraitMode = isPortraitMode;
             hasInitialized = true;
 
+            // Register for SyncDictionary changes using Callback instead of OnChange
+            breadboardComponents.Callback += OnBreadboardComponentsChanged;
+
             // Apply current state (if already in sim mode when joining)
             if (isInSimMode)
             {
@@ -81,26 +82,23 @@ namespace Mirror
                 }
             }
         }
-        void OnBreadboardStateChanged(string oldState, string newState)
-        {
-            Debug.Log("Changes Detected! Updating...");
 
-            BreadboardStateUtils.Instance.VisualizeBreadboard(this);
+        public override void OnStopClient()
+        {
+            // Remove handler when client stops
+            breadboardComponents.Callback -= OnBreadboardComponentsChanged;
         }
 
+        void OnBreadboardComponentsChanged(SyncIDictionary<string, BreadboardComponentData>.Operation op, string key, BreadboardComponentData item)
+        {
+            Debug.Log($"Breadboard component changed: {op} {key}");
+            BreadboardStateUtils.Instance.VisualizeBreadboard(this);
+        }
 
         void Update()
         {
             if (hasInitialized)
             {
-
-                // Check for breadboard state changes
-                if (breadboardState != previousBreadboardState)
-                {
-                    OnBreadboardStateChanged(previousBreadboardState, breadboardState);
-                    previousBreadboardState = breadboardState;
-                }
-
                 // Check for sim mode change
                 if (prevIsInSimMode != isInSimMode)
                 {
@@ -143,25 +141,44 @@ namespace Mirror
                 }
             }
 
-            // Existing key-press checks for testing
+            // Debug key-press checks
             if (hasAuthority)
             {
                 if (Input.GetKeyDown(KeyCode.P))
                 {
-                    CmdUpdateBreadboardState("{ new state }");
+                    var wireData = new BreadboardComponentData
+                    {
+                        type = "wire",
+                        startNode = "1A",
+                        endNode = "1B",
+                        color = "red"
+                    };
+                    CmdAddComponent("wire1", wireData);
                 }
 
                 if (Input.GetKeyDown(KeyCode.G))
                 {
-                    CmdUpdateBreadboardState("{ asdfasdf state }");
+                    CmdRemoveComponent("wire1");
                 }
             }
         }
 
         [Command]
-        public void CmdUpdateBreadboardState(string state)
+        public void CmdAddComponent(string id, BreadboardComponentData component)
         {
-            breadboardState = state;
+            breadboardComponents[id] = component;
+        }
+
+        [Command]
+        public void CmdRemoveComponent(string id)
+        {
+            breadboardComponents.Remove(id);
+        }
+
+        [Command]
+        public void CmdClearAllComponents()
+        {
+            breadboardComponents.Clear();
         }
 
         [Command]
@@ -176,6 +193,7 @@ namespace Mirror
             isPortraitMode = !isPortraitMode;
         }
 
+        // Animation methods remain unchanged
         // Called when entering simulation mode
         private void ApplySimulationMode()
         {
@@ -249,7 +267,7 @@ namespace Mirror
             }
         }
 
-        // Animation Helper Methods
+        // Animation Helper Methods - unchanged
         private Transform FindBreadboardChild(Transform parent)
         {
             // Look for a child named "Breadboard"
