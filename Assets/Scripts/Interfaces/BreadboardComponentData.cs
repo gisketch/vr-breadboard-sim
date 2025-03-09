@@ -5,7 +5,7 @@ using Mirror;
 public struct BreadboardComponentData
 {
     // Component type
-    public string type; // "wire", "led", "sevenSeg", "ic"
+    public string type; // "wire", "led", "sevenSeg", "ic", "dipSwitch"
     
     // Wire fields
     public string startNode;
@@ -48,4 +48,7 @@ public struct BreadboardComponentData
     public string pin14;
     public string pin15;
     public string pin16;
+
+    // Dip Switch fields
+    public bool isOn;
 }

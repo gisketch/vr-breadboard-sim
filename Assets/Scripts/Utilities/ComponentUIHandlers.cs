@@ -5,6 +5,11 @@ using UnityEngine;
 public class ComponentUIHandlers : MonoBehaviour
 {   
 
+    public void DipSwitchClick()
+    {
+        ComponentManager.Instance.SelectComponentType(ComponentType.DipSwitch);
+    }
+
     public void IC7488Click()
     {
         ComponentManager.Instance.SelectComponentType(ComponentType.IC);

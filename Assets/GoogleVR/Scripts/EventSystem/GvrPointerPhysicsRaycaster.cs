@@ -167,12 +167,16 @@ public class GvrPointerPhysicsRaycaster : GvrBasePointerRaycaster
 
     private void Update()
     {
-        if (BreadboardManager.Instance.IsSimulationMode && raycasterEventMask != 1 << LayerMask.NameToLayer("Nodes") )
+        // Calculate the desired layer mask based on simulation mode.
+        int targetLayerMask = BreadboardManager.Instance.IsSimulationMode 
+                                ? (1 << LayerMask.NameToLayer("Nodes") | 1 << LayerMask.NameToLayer("Component")) // Include BOTH Nodes and Component layers if in simulation mode
+                                : (1 << LayerMask.NameToLayer("Interactable")); // Interactable layer if not in simulation mode
+
+        // Check if the current layer mask is different from the target layer mask.
+        if (raycasterEventMask != targetLayerMask)
         {
-            raycasterEventMask = 1 << LayerMask.NameToLayer("Nodes");
-        } else if (!BreadboardManager.Instance.IsSimulationMode && raycasterEventMask != 1 << LayerMask.NameToLayer("Interactable") )
-        {
-            raycasterEventMask = 1 << LayerMask.NameToLayer("Interactable");
+            // Update the layer mask to the desired value.
+            raycasterEventMask = targetLayerMask;
         }
     }
 

@@ -454,6 +454,50 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 8
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &325112866
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 325112868}
+  - component: {fileID: 325112867}
+  m_Layer: 0
+  m_Name: DipSwitchTool
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &325112867
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 325112866}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7ea815f2c3d35a4691caeb08c98f429, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  pin1: {fileID: 0}
+--- !u!4 &325112868
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 325112866}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 13.164488, y: 4.7648053, z: 1.734204}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 25
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &391972128
 GameObject:
   m_ObjectHideFlags: 0
@@ -1352,6 +1396,8 @@ MonoBehaviour:
     type: 3}
   icComponent: {fileID: 7596518438848050448, guid: 3ffcf4f20f809dc45ad2ce23b9d74c4a,
     type: 3}
+  dipSwitchComponent: {fileID: 3986342370574292202, guid: 873e7c534a555f34eb47a0048740cde1,
+    type: 3}
 --- !u!4 &1168245577
 Transform:
   m_ObjectHideFlags: 0
@@ -1579,6 +1625,7 @@ MonoBehaviour:
   ledTool: {fileID: 453855819}
   sevenSegmentTool: {fileID: 1529718134}
   icTool: {fileID: 78736375}
+  dipSwitchTool: {fileID: 325112867}
   currentComponentType: 1
   currentColor: 0
   currentICType: 0

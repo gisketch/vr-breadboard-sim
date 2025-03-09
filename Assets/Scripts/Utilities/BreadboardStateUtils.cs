@@ -15,11 +15,13 @@ public class BreadboardStateUtils : MonoBehaviour
     private int ledCounter = 0;
     private int sevenSegCounter = 0;
     private int icCounter = 0;
+    private int dipSwitchCounter = 0;
 
     [SerializeField] private GameObject wireComponent;
     [SerializeField] private GameObject ledComponent;
     [SerializeField] private GameObject sevenSegmentComponent;
     [SerializeField] private GameObject icComponent;
+    [SerializeField] private GameObject dipSwitchComponent;
 
     private void Awake()
     {
@@ -143,6 +145,31 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
+    // DipSwitch: pin1
+    public void AddDipSwitch(string pin1, bool initialState = false)
+    {
+        try
+        {
+            dipSwitchCounter++;
+            string dipSwitchId = $"dipSwitch{dipSwitchCounter}";
+
+            BreadboardComponentData dipSwitch = new BreadboardComponentData
+            {
+                type = "dipSwitch",
+                pin1 = pin1,
+                pin2 = GetNodeNameOffset(pin1, 0, 1),
+                isOn = initialState,
+            };
+
+            myBreadboardController.CmdAddComponent(dipSwitchId, dipSwitch);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Error adding Dip Switch: {e.Message}");
+        }
+    }
+
+
     public void RemoveComponentWithNode(string node)
     {
         try
@@ -201,17 +228,17 @@ public class BreadboardStateUtils : MonoBehaviour
         {
             case "wire":
                 return component.startNode == node || component.endNode == node;
-                
+
             case "led":
                 return component.anode == node || component.cathode == node;
-                
+
             case "sevenSeg":
                 return component.nodeA == node || component.nodeB == node ||
                        component.nodeC == node || component.nodeD == node ||
                        component.nodeE == node || component.nodeF == node ||
                        component.nodeG == node || component.nodeDP == node ||
                        component.nodeGnd1 == node || component.nodeGnd2 == node;
-                       
+
             case "ic":
                 return component.pin1 == node || component.pin2 == node ||
                        component.pin3 == node || component.pin4 == node ||
@@ -221,7 +248,9 @@ public class BreadboardStateUtils : MonoBehaviour
                        component.pin11 == node || component.pin12 == node ||
                        component.pin13 == node || component.pin14 == node ||
                        component.pin15 == node || component.pin16 == node;
-                       
+            case "dipSwitch":
+                return component.pin1 == node || component.pin2 == node;
+
             default:
                 return false;
         }
@@ -231,19 +260,19 @@ public class BreadboardStateUtils : MonoBehaviour
     private HashSet<string> GetAllComponentNodes(BreadboardComponentData component)
     {
         HashSet<string> nodes = new HashSet<string>();
-        
+
         switch (component.type)
         {
             case "wire":
                 if (!string.IsNullOrEmpty(component.startNode)) nodes.Add(component.startNode);
                 if (!string.IsNullOrEmpty(component.endNode)) nodes.Add(component.endNode);
                 break;
-                
+
             case "led":
                 if (!string.IsNullOrEmpty(component.anode)) nodes.Add(component.anode);
                 if (!string.IsNullOrEmpty(component.cathode)) nodes.Add(component.cathode);
                 break;
-                
+
             case "sevenSeg":
                 if (!string.IsNullOrEmpty(component.nodeA)) nodes.Add(component.nodeA);
                 if (!string.IsNullOrEmpty(component.nodeB)) nodes.Add(component.nodeB);
@@ -256,7 +285,7 @@ public class BreadboardStateUtils : MonoBehaviour
                 if (!string.IsNullOrEmpty(component.nodeGnd1)) nodes.Add(component.nodeGnd1);
                 if (!string.IsNullOrEmpty(component.nodeGnd2)) nodes.Add(component.nodeGnd2);
                 break;
-                
+
             case "ic":
                 if (!string.IsNullOrEmpty(component.pin1)) nodes.Add(component.pin1);
                 if (!string.IsNullOrEmpty(component.pin2)) nodes.Add(component.pin2);
@@ -275,8 +304,12 @@ public class BreadboardStateUtils : MonoBehaviour
                 if (!string.IsNullOrEmpty(component.pin15)) nodes.Add(component.pin15);
                 if (!string.IsNullOrEmpty(component.pin16)) nodes.Add(component.pin16);
                 break;
+            case "dipSwitch":
+                if (!string.IsNullOrEmpty(component.pin1)) nodes.Add(component.pin1);
+                if (!string.IsNullOrEmpty(component.pin2)) nodes.Add(component.pin2);
+                break;
         }
-        
+
         return nodes;
     }
 
@@ -407,6 +440,11 @@ public class BreadboardStateUtils : MonoBehaviour
                     componentObj["pin15"] = component.pin15;
                     componentObj["pin16"] = component.pin16;
                     break;
+                case "dipSwitch":
+                    componentObj["pin1"] = component.pin1;
+                    componentObj["pin2"] = component.pin2;
+                    componentObj["isOn"] = component.isOn;
+                    break;
             }
 
             componentsObj[componentKey] = componentObj;
@@ -499,6 +537,9 @@ public class BreadboardStateUtils : MonoBehaviour
 
             case "ic":
                 CreateICComponent(component, componentsParent, componentKey);
+                break;
+            case "dipSwitch":
+                CreateDipSwitchComponent(component, componentsParent, componentKey);
                 break;
 
             default:
@@ -601,6 +642,30 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
+    private void CreateDipSwitchComponent(BreadboardComponentData dipSwitch, Transform parent, string name)
+    {
+        Debug.Log("CREATED DipSwitch component");
+        if (string.IsNullOrEmpty(dipSwitch.pin1))
+        {
+            Debug.LogWarning("Invalid dip switch configuration");
+            return;
+        }
+
+        GameObject newDipSwitch = Instantiate(dipSwitchComponent, parent);
+        newDipSwitch.name = name;
+        DipSwitch dipSwitchScript = newDipSwitch.GetComponent<DipSwitch>();
+
+        if (dipSwitchScript != null)
+        {
+            dipSwitchScript.Initialize(dipSwitch.pin1, dipSwitch.isOn, parent.parent);
+        }
+        else
+        {
+            Debug.LogError("DipSwitch prefab is missing DipSwitch component");
+            Destroy(newDipSwitch);
+        }
+    }
+
     // Node Utils
     private void ClearAllNodeOccupancies(BreadboardController bc)
     {
@@ -641,7 +706,7 @@ public class BreadboardStateUtils : MonoBehaviour
         {
             BreadboardComponentData component = kvp.Value;
             HashSet<string> componentNodes = GetAllComponentNodes(component);
-            
+
             foreach (string nodeName in componentNodes)
             {
                 if (!string.IsNullOrEmpty(nodeName))
