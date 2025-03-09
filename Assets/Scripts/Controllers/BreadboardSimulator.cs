@@ -200,6 +200,7 @@ public class BreadboardSimulator : MonoBehaviour
         {
             string nodeList = string.Join(", ", net.Nodes.Take(5));
             if (net.Nodes.Count > 5) nodeList += $"... ({net.Nodes.Count - 5} more)";
+            Debug.Log($"  Net {net.Id}: {nodeList} - State: {net.State}, Source: {net.Source}");
         }
 
         // Log errors
@@ -321,16 +322,52 @@ public class BreadboardSimulator : MonoBehaviour
                     Debug.LogError($"Wire {componentKey} missing startNode or endNode");
                 }
             }
+            // Handle DIP switches - only connect pins if switch is ON
+            else if (componentKey.StartsWith("dipSwitch"))
+            {
+                string pin1 = componentValue["pin1"] != null ? componentValue["pin1"].ToString() : 
+                              componentValue["inputPin"]?.ToString();  // Support both naming conventions
+                
+                string pin2 = componentValue["pin2"] != null ? componentValue["pin2"].ToString() : 
+                              componentValue["outputPin"]?.ToString(); // Support both naming conventions
+                
+                bool isOn = componentValue["isOn"] != null ? componentValue["isOn"].Value<bool>() : false;
+                
+                if (!string.IsNullOrEmpty(pin1) && !string.IsNullOrEmpty(pin2))
+                {
+                    // Make sure both pins exist in the graph
+                    graph.AddNode(pin1);
+                    graph.AddNode(pin2);
+                    
+                    // Only connect the pins if the switch is ON
+                    if (isOn)
+                    {
+                        Debug.Log($"DIP Switch {componentKey} is ON, connecting {pin1} to {pin2}");
+                        graph.AddEdge(pin1, pin2);
+                    }
+                    else
+                    {
+                        Debug.Log($"DIP Switch {componentKey} is OFF, pins {pin1} and {pin2} are disconnected");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"DIP Switch {componentKey} missing pin1/inputPin or pin2/outputPin");
+                }
+            }
             // Handle other components by their pin connections
             else
             {
                 // For each property in the component
                 foreach (JProperty property in componentValue.Children<JProperty>())
                 {
-                    if (property.Name != "type" && property.Name != "color")
+                    if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
                     {
                         string node = property.Value.ToString();
-                        graph.AddNode(node);
+                        if (!string.IsNullOrEmpty(node))
+                        {
+                            graph.AddNode(node);
+                        }
                     }
                 }
             }
@@ -471,10 +508,10 @@ public class BreadboardSimulator : MonoBehaviour
         
         foreach (JProperty property in component.Children<JProperty>())
         {
-            if (property.Name != "type" && property.Name != "color")
+            if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
             {
                 string node = property.Value.ToString();
-                if (nodeToNetMap.ContainsKey(node))
+                if (!string.IsNullOrEmpty(node) && nodeToNetMap.ContainsKey(node))
                 {
                     connectedNets[property.Name] = nodeToNetMap[node];
                 }
@@ -505,9 +542,17 @@ public class BreadboardSimulator : MonoBehaviour
                 string componentKey = componentProp.Name;
                 JToken componentValue = componentProp.Value;
                 
-                // Skip wires (already processed in graph building)
-                if (componentKey.StartsWith("wire"))
+                // Skip wires and DIP switches (already processed in graph building)
+                if (componentKey.StartsWith("wire") || componentKey.StartsWith("dipSwitch"))
                 {
+                    // For DIP switches, just store their state
+                    if (componentKey.StartsWith("dipSwitch"))
+                    {
+                        bool isOn = componentValue["isOn"] != null ? 
+                            componentValue["isOn"].Value<bool>() : false;
+                            
+                        componentStates[componentKey] = new { isOn = isOn };
+                    }
                     continue;
                 }
 
@@ -597,7 +642,6 @@ public class BreadboardSimulator : MonoBehaviour
 
         return new { segments = segments };
     }
-
 
     // Evaluate IC component
     private (bool statesChanged, object state) EvaluateIC(JToken ic,
