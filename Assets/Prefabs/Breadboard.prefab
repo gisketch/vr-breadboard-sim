@@ -48614,7 +48614,6 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0.1
   allowInstructor: 0
-  breadboardState: '{"components": {} }'
   isInSimMode: 0
   isPortraitMode: 1
   idleBreadboardPosition: {x: 0, y: 0, z: 0}
@@ -50113,12 +50112,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7925354975840677421, guid: e7fedaddce32c9d4691dc779b9324389,
         type: 3}
-      propertyPath: m_LocalScale.z
+      propertyPath: m_LocalScale.y
       value: 1280
       objectReference: {fileID: 0}
     - target: {fileID: 7925354975840677421, guid: e7fedaddce32c9d4691dc779b9324389,
         type: 3}
-      propertyPath: m_LocalScale.y
+      propertyPath: m_LocalScale.z
       value: 1280
       objectReference: {fileID: 0}
     m_RemovedComponents: []
