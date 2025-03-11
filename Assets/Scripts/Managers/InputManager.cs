@@ -40,31 +40,31 @@ public class InputManager : MonoBehaviour
 
     public bool GetPrimaryButton()
     {
-        return Input.GetKey(KeyCode.M) || Input.GetButton("Primary");
+        return Input.GetKey(KeyCode.M) || Input.GetKey("joystick button 0");
     }
 
     public bool GetPrimaryButtonDown()
     {
-        return Input.GetKeyDown(KeyCode.M) || Input.GetButtonDown("Primary");
+        return Input.GetKeyDown(KeyCode.M) || Input.GetKeyDown("joystick button 0");
     }
 
     public bool GetSecondaryButton()
     {
-        return Input.GetKey(KeyCode.Mouse1) || Input.GetButton("Secondary");
+        return Input.GetKey(KeyCode.Mouse1) || Input.GetKey("josytick button 3");
     }
 
     public bool GetSecondaryButtonDown()
     {
-        return Input.GetKeyDown(KeyCode.Mouse1) || Input.GetButtonDown("Secondary");
+        return Input.GetKeyDown(KeyCode.Mouse1) || Input.GetKeyDown("joystick button 3");
     }
 
     public bool GetAscendButtonDown()
     {
-        return Input.GetKeyDown(KeyCode.Q) || Input.GetButtonDown("Ascend");
+        return Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown("joystick button 2");
     }
 
     public bool GetDescendButtonDown()
     {
-        return Input.GetKeyDown(KeyCode.E) || Input.GetButtonDown("Descend");
+        return Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown("joystick button 1");
     }
 }
