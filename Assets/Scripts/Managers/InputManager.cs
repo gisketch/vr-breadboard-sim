@@ -7,18 +7,9 @@ public class InputManager : MonoBehaviour
     [Header("Movement Settings")]
     public string horizontalAxisName = "Horizontal";
     public string verticalAxisName = "Vertical";
-    
-    [Header("Button Mappings")]
-    public KeyCode primaryActionKey = KeyCode.Mouse0;
-    public KeyCode secondaryActionKey = KeyCode.Mouse1;
-    public KeyCode ascendKey = KeyCode.Q;
-    public KeyCode descendKey = KeyCode.E;
-    
-    [Header("Gamepad Button Mappings")]
-    public string primaryActionButtonName = "Fire1";
-    public string secondaryActionButtonName = "Fire2";
-    public string ascendButtonName = "LBKABLKA";
-    public string descendButtonName = "BLABLAB";
+
+    public string gamepadHorizontalAxisName = "MoveHorizontal";
+    public string gamepadVerticalAxisName = "MoveVertical";
 
     private void Awake()
     {
@@ -37,37 +28,43 @@ public class InputManager : MonoBehaviour
     {
         float horizontal = Input.GetAxis(horizontalAxisName);
         float vertical = Input.GetAxis(verticalAxisName);
-        
-        return new Vector2(horizontal, vertical);
+
+        float gamepadHorizontal = Input.GetAxis(gamepadHorizontalAxisName);
+        float gamepadVertical = Input.GetAxis(gamepadVerticalAxisName);
+
+        Vector2 keyboardInput = new Vector2(horizontal, vertical);
+        Vector2 gamepadInput = new Vector2(gamepadHorizontal, gamepadVertical);
+
+        return keyboardInput.sqrMagnitude > gamepadInput.sqrMagnitude ? keyboardInput : gamepadInput;
     }
 
     public bool GetPrimaryButton()
     {
-        return Input.GetKey(primaryActionKey) || Input.GetButton(primaryActionButtonName);
+        return Input.GetKey(KeyCode.M) || Input.GetButton("Primary");
     }
-    
+
     public bool GetPrimaryButtonDown()
     {
-        return Input.GetKeyDown(primaryActionKey) || Input.GetButtonDown(primaryActionButtonName);
+        return Input.GetKeyDown(KeyCode.M) || Input.GetButtonDown("Primary");
     }
 
     public bool GetSecondaryButton()
     {
-        return Input.GetKey(secondaryActionKey) || Input.GetButton(secondaryActionButtonName);
+        return Input.GetKey(KeyCode.Mouse1) || Input.GetButton("Secondary");
     }
-    
+
     public bool GetSecondaryButtonDown()
     {
-        return Input.GetKeyDown(secondaryActionKey) || Input.GetButtonDown(secondaryActionButtonName);
+        return Input.GetKeyDown(KeyCode.Mouse1) || Input.GetButtonDown("Secondary");
     }
 
-    public bool GetAscendButton()
+    public bool GetAscendButtonDown()
     {
-        return Input.GetKey(ascendKey) || Input.GetButton(ascendButtonName);
+        return Input.GetKeyDown(KeyCode.Q) || Input.GetButtonDown("Ascend");
     }
 
-    public bool GetDescendButton()
+    public bool GetDescendButtonDown()
     {
-        return Input.GetKey(descendKey) || Input.GetButton(descendButtonName);
+        return Input.GetKeyDown(KeyCode.E) || Input.GetButtonDown("Descend");
     }
 }

@@ -441,6 +441,7 @@ GameObject:
   - component: {fileID: 7300159926537505252}
   - component: {fileID: 2491522551227791230}
   - component: {fileID: 6456374134285485231}
+  - component: {fileID: 4010570362912504282}
   m_Layer: 5
   m_Name: IC74148
   m_TagString: Untagged
@@ -558,6 +559,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &4010570362912504282
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 585815337046122547}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &884852776370921188
 GameObject:
   m_ObjectHideFlags: 0
@@ -976,6 +989,7 @@ GameObject:
   - component: {fileID: 1782186607578814058}
   - component: {fileID: 7078123242573500552}
   - component: {fileID: 3040569283379201101}
+  - component: {fileID: 5761814245168608102}
   m_Layer: 5
   m_Name: IC74138
   m_TagString: Untagged
@@ -1093,6 +1107,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &5761814245168608102
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2387030874449310401}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &2437314987077278255
 GameObject:
   m_ObjectHideFlags: 0
@@ -1208,6 +1234,7 @@ GameObject:
   - component: {fileID: 7759871631068172182}
   - component: {fileID: 3749431331040620178}
   - component: {fileID: 5434579995571009778}
+  - component: {fileID: 3314614537548008321}
   m_Layer: 5
   m_Name: GreenWire
   m_TagString: Untagged
@@ -1324,6 +1351,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &3314614537548008321
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2684180422034159850}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &2735819108703647522
 GameObject:
   m_ObjectHideFlags: 0
@@ -47656,6 +47695,7 @@ GameObject:
   - component: {fileID: 8396885504454526270}
   - component: {fileID: 7598163580385536512}
   - component: {fileID: 5415930519769560626}
+  - component: {fileID: 2383456848917782163}
   m_Layer: 5
   m_Name: BlueWire
   m_TagString: Untagged
@@ -47772,6 +47812,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &2383456848917782163
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3076754203850058143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &3304590985139589466
 GameObject:
   m_ObjectHideFlags: 0
@@ -47784,6 +47836,7 @@ GameObject:
   - component: {fileID: 3304590985139589470}
   - component: {fileID: 3304590985139589471}
   - component: {fileID: 3304590985139589468}
+  - component: {fileID: 3113935154102084578}
   m_Layer: 5
   m_Name: RedWire
   m_TagString: Untagged
@@ -47900,6 +47953,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &3113935154102084578
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3304590985139589466}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &3834928229382415159
 GameObject:
   m_ObjectHideFlags: 0
@@ -48230,6 +48295,7 @@ GameObject:
   - component: {fileID: 38598373766523423}
   - component: {fileID: 3117543906491672611}
   - component: {fileID: 1717599775247180050}
+  - component: {fileID: 8557420281943965655}
   m_Layer: 5
   m_Name: IC7448
   m_TagString: Untagged
@@ -48347,6 +48413,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &8557420281943965655
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4261307175786761535}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &4868419236681347355
 GameObject:
   m_ObjectHideFlags: 0
@@ -48359,6 +48437,7 @@ GameObject:
   - component: {fileID: 7112088802462632817}
   - component: {fileID: 1323533101041030939}
   - component: {fileID: 3167466024533136797}
+  - component: {fileID: 2860226585558084581}
   m_Layer: 5
   m_Name: RedLED
   m_TagString: Untagged
@@ -48476,6 +48555,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &2860226585558084581
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4868419236681347355}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &4886817424452047294
 GameObject:
   m_ObjectHideFlags: 0
@@ -48860,6 +48951,7 @@ GameObject:
   - component: {fileID: 1184920615822913322}
   - component: {fileID: 5135981901876937126}
   - component: {fileID: 2279190170849981315}
+  - component: {fileID: 1459082181498633378}
   m_Layer: 5
   m_Name: BlueLED
   m_TagString: Untagged
@@ -48977,6 +49069,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &1459082181498633378
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5705868216446300930}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &6720853462722329953
 GameObject:
   m_ObjectHideFlags: 0
@@ -48989,6 +49093,7 @@ GameObject:
   - component: {fileID: 4540889313968072689}
   - component: {fileID: 7568736593468549901}
   - component: {fileID: 2954358179064780637}
+  - component: {fileID: 3215017411365466747}
   m_Layer: 5
   m_Name: GreenLED
   m_TagString: Untagged
@@ -49106,6 +49211,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &3215017411365466747
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6720853462722329953}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &6812392155422913680
 GameObject:
   m_ObjectHideFlags: 0
@@ -49867,6 +49984,7 @@ GameObject:
   - component: {fileID: 7046852777766809929}
   - component: {fileID: 330577362714526269}
   - component: {fileID: 1840209152742580152}
+  - component: {fileID: 3052111532118133214}
   m_Layer: 5
   m_Name: DipSwitch
   m_TagString: Untagged
@@ -49984,6 +50102,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &3052111532118133214
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8036819488856077375}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &8448025420584854040
 GameObject:
   m_ObjectHideFlags: 0
@@ -49996,6 +50126,7 @@ GameObject:
   - component: {fileID: 169237277297466585}
   - component: {fileID: 67308310892627797}
   - component: {fileID: 1278342899803645922}
+  - component: {fileID: 8037888695221814929}
   m_Layer: 5
   m_Name: SevenSeg
   m_TagString: Untagged
@@ -50113,6 +50244,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &8037888695221814929
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8448025420584854040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68f92ab006b38d84cbad0042deb406ca, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &8701544554593177307
 GameObject:
   m_ObjectHideFlags: 0

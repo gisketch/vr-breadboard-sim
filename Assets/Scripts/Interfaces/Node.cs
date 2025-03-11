@@ -31,6 +31,10 @@ public class Node : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler, I
     void Update()
     {
         if (!isHovering) return;
+        if (InputManager.Instance.GetPrimaryButton())
+        {
+            ComponentManager.Instance.OnNodeClick(this);
+        }
         if (InputManager.Instance.GetSecondaryButtonDown())
         {
             if(isOccupied) BreadboardStateUtils.Instance.RemoveComponentWithNode(gameObject.name);
@@ -52,9 +56,9 @@ public class Node : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler, I
     
     public void OnPointerClick(PointerEventData eventData)
     {
-        ComponentManager.Instance.OnNodeClick(this);
+        // ComponentManager.Instance.OnNodeClick(this);
     }
-    
+
     public void SetHighlightColor(HighlightColor color)
     {
         string materialName = color.ToString();

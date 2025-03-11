@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class DipSwitch : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler, IPointerExitHandler
+public class DipSwitch : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 
 {
     private Node pin1;
@@ -38,21 +38,21 @@ public class DipSwitch : MonoBehaviour, IPointerEnterHandler, IPointerClickHandl
     private void ToggleState()
     {
         // Find this switch in the breadboard components and toggle it
-            foreach (var kvp in BreadboardStateUtils.Instance.myBreadboardController.breadboardComponents)
+        foreach (var kvp in BreadboardStateUtils.Instance.myBreadboardController.breadboardComponents)
+        {
+            if (kvp.Value.type == "dipSwitch" &&
+                kvp.Value.pin1 == pin1.name &&
+                kvp.Value.pin2 == pin2.name)
             {
-                if (kvp.Value.type == "dipSwitch" && 
-                    kvp.Value.pin1 == pin1.name && 
-                    kvp.Value.pin2 == pin2.name)
-                {
-                    // Create updated component with toggled state
-                    BreadboardComponentData updatedData = kvp.Value;
-                    updatedData.isOn = !updatedData.isOn;
-                    
-                    // Update the component
-                    BreadboardStateUtils.Instance.myBreadboardController.CmdAddComponent(kvp.Key, updatedData);
-                    break;
-                }
+                // Create updated component with toggled state
+                BreadboardComponentData updatedData = kvp.Value;
+                updatedData.isOn = !updatedData.isOn;
+
+                // Update the component
+                BreadboardStateUtils.Instance.myBreadboardController.CmdAddComponent(kvp.Key, updatedData);
+                break;
             }
+        }
     }
 
     private void UpdateState(bool state)
@@ -91,18 +91,20 @@ public class DipSwitch : MonoBehaviour, IPointerEnterHandler, IPointerClickHandl
         isHovering = false;
         meshRenderer.material = Resources.Load<Material>("Materials/DipSwitch");
     }
-    
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        if (isHovering)
-        {
-            ToggleState();
-        }
-    }
-
 
     private void Update()
     {
+        if (isHovering)
+        {
+            if (InputManager.Instance.GetPrimaryButtonDown())
+            {
+                ToggleState();
+            }
+            else if (InputManager.Instance.GetSecondaryButtonDown())
+            {
+                if (pin1.isOccupied) BreadboardStateUtils.Instance.RemoveComponentWithNode(pin1.name);
+            }
+        }
     }
 
     public void Remove()

@@ -32,6 +32,10 @@ namespace Mirror
         private float verticalVelocity = 0f;
         private int localPlayerLayerIndex;
 
+        // Toggle state variables
+        private bool isAscending = false;
+        private bool isDescending = false;
+
         private void Awake()
         {
             localPlayerLayerIndex = LayerMask.NameToLayer(localPlayerLayer);
@@ -72,7 +76,6 @@ namespace Mirror
 
                 mainCamera.cullingMask &= ~(1 << localPlayerLayerIndex);
             }
-
         }
 
         private void SetLayerRecursively(GameObject obj, int layerIndex)
@@ -91,20 +94,89 @@ namespace Mirror
         private void Update()
         {
             if (!hasAuthority) { return; }
+
             HandleMovement();
             HandleVerticalMovement();
             HandleRotation();
+            HandleVerticalToggle();
+
+            // For debugging purposes
+            if (Input.GetKeyDown(KeyCode.L))
+            {
+                Debug.Log($"Fly Mode: {isFlyMode}, Ascending: {isAscending}, Descending: {isDescending}");
+            }
 
             if (!isFlyMode && BreadboardManager.Instance.IsSimulationMode)
             {
                 isFlyMode = true;
+                // Reset vertical movement when entering fly mode
+                isAscending = false;
+                isDescending = false;
+                GameManager.Instance.ClearInteractionMessage();
             }
 
             if (isFlyMode && !BreadboardManager.Instance.IsSimulationMode)
             {
                 isFlyMode = false;
+                // Reset vertical movement when exiting fly mode
+                isAscending = false;
+                isDescending = false;
+                GameManager.Instance.ClearInteractionMessage();
             }
+        }
 
+        private void HandleVerticalToggle()
+        {
+            if (!isFlyMode) return;
+
+            // Toggle descending state when the descend button is pressed
+            if (InputManager.Instance.GetDescendButtonDown())
+            {
+                if (isAscending)
+                {
+                    // If currently ascending, stop ascending first
+                    isAscending = false;
+                    GameManager.Instance.ClearInteractionMessage();
+                }
+
+                isDescending = !isDescending;
+
+                // Update the interaction message
+                if (isDescending)
+                {
+                    GameManager.Instance.SetInteractionMessage("Descending. Press D to stop.");
+                    Debug.Log("Started descending");
+                }
+                else
+                {
+                    GameManager.Instance.ClearInteractionMessage();
+                    Debug.Log("Stopped descending");
+                }
+            }
+            // Toggle ascending state when the ascend button is pressed
+            if (InputManager.Instance.GetAscendButtonDown() || Input.GetKeyDown(KeyCode.C))
+            {
+                if (isDescending)
+                {
+                    // If currently descending, stop descending first
+                    isDescending = false;
+                    GameManager.Instance.ClearInteractionMessage();
+                }
+
+                isAscending = !isAscending;
+
+                // Update the interaction message
+                if (isAscending)
+                {
+                    GameManager.Instance.SetInteractionMessage("Ascending. Press C to stop.");
+                    Debug.Log("Started ascending");
+                }
+                else
+                {
+                    GameManager.Instance.ClearInteractionMessage();
+                    Debug.Log("Stopped ascending");
+                }
+            }
 
 
         }
@@ -166,12 +238,12 @@ namespace Mirror
                 moveSpeed = 2.0f;
                 verticalFlySpeed = 1.5f;
 
-                if (InputManager.Instance.GetAscendButton())
+                // Apply vertical movement based on toggle state
+                if (isAscending)
                 {
                     characterController.Move(Vector3.up * verticalFlySpeed * Time.deltaTime);
                 }
-
-                if (InputManager.Instance.GetDescendButton())
+                else if (isDescending) // Changed to else if to ensure mutual exclusivity
                 {
                     characterController.Move(Vector3.down * verticalFlySpeed * Time.deltaTime);
                 }
@@ -194,6 +266,5 @@ namespace Mirror
                 }
             }
         }
-
     }
 }

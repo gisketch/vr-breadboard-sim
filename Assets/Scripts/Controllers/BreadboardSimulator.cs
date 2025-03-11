@@ -195,13 +195,13 @@ public class BreadboardSimulator : MonoBehaviour
         }
 
         // Log nets
-        Debug.Log($"Electrical nets ({result.Nets.Count}):");
-        foreach (var net in result.Nets)
-        {
-            string nodeList = string.Join(", ", net.Nodes.Take(5));
-            if (net.Nodes.Count > 5) nodeList += $"... ({net.Nodes.Count - 5} more)";
-            Debug.Log($"  Net {net.Id}: {nodeList} - State: {net.State}, Source: {net.Source}");
-        }
+        // Debug.Log($"Electrical nets ({result.Nets.Count}):");
+        // foreach (var net in result.Nets)
+        // {
+        //     string nodeList = string.Join(", ", net.Nodes.Take(5));
+        //     if (net.Nodes.Count > 5) nodeList += $"... ({net.Nodes.Count - 5} more)";
+        //     Debug.Log($"  Net {net.Id}: {nodeList} - State: {net.State}, Source: {net.Source}");
+        // }
 
         // Log errors
         Debug.Log($"Errors ({result.Errors.Count}):");

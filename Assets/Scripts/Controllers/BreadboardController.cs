@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -12,7 +12,7 @@ namespace Mirror
         [SerializeField] private bool allowInstructor = false;
 
         public readonly SyncDictionary<string, BreadboardComponentData> breadboardComponents = new SyncDictionary<string, BreadboardComponentData>();
-        
+
         [SyncVar]
         public bool isInSimMode = false;
         private bool prevIsInSimMode = false;
@@ -36,6 +36,8 @@ namespace Mirror
 
         private bool hasInitialized = false;
 
+        private bool isHovering = false;
+
         void Awake()
         {
             // Find the breadboard child transform
@@ -51,8 +53,8 @@ namespace Mirror
         {
             base.OnStartClient();
 
-            if(hasAuthority) BreadboardStateUtils.Instance.myBreadboardController = this;
-            
+            if (hasAuthority) BreadboardStateUtils.Instance.myBreadboardController = this;
+
             // Store initial positions and rotations
             idleBreadboardPosition = transform.localPosition;
             idleBreadboardRotation = transform.rotation;
@@ -74,7 +76,7 @@ namespace Mirror
             if (isInSimMode)
             {
                 ApplySimulationMode();
-                
+
                 // Only create UI if this is our own breadboard
                 if (hasAuthority)
                 {
@@ -99,6 +101,10 @@ namespace Mirror
         {
             if (hasInitialized)
             {
+                if (isHovering && hasAuthority && InputManager.Instance.GetPrimaryButtonDown())
+                {
+                    ClickOwner();
+                }
                 // Check for sim mode change
                 if (prevIsInSimMode != isInSimMode)
                 {
@@ -106,7 +112,7 @@ namespace Mirror
                     {
                         idleBreadboardPosition = transform.position;
                         ApplySimulationMode();
-                        
+
                         // Only create UI if this is our own breadboard
                         if (hasAuthority)
                         {
@@ -116,7 +122,7 @@ namespace Mirror
                     else
                     {
                         ApplyIdleMode();
-                        
+
                         // Only remove UI if this is our own breadboard
                         if (hasAuthority)
                         {
@@ -131,7 +137,7 @@ namespace Mirror
                 {
                     Quaternion childTargetRotation = CalculateChildRotation();
                     RotateBreadboardChild(childTargetRotation);
-                    
+
                     // Only update UI if this is our own breadboard
                     if (hasAuthority)
                     {
@@ -198,7 +204,7 @@ namespace Mirror
         private void ApplySimulationMode()
         {
             CancelOngoingTweens();
-            
+
             // Calculate target positions and rotations
             Vector3 targetPosition = CalculateSimulationPosition();
             Quaternion parentTargetRotation = CalculateParentRotation();
@@ -212,7 +218,7 @@ namespace Mirror
         private void ApplyIdleMode()
         {
             CancelOngoingTweens();
-            
+
             // Animate back to idle position
             AnimateBreadboard(idleBreadboardPosition, idleBreadboardRotation, idleChildRotation);
         }
@@ -247,6 +253,7 @@ namespace Mirror
             if (hasAuthority)
             {
                 HoverOwner();
+                isHovering = true;
             }
             else
             {
@@ -256,7 +263,8 @@ namespace Mirror
 
         public void OnPointerExit(PointerEventData eventData)
         {
-            GameManager.Instance.ClearInteractionMessage();
+            isHovering = false;
+            if (!isInSimMode) GameManager.Instance.ClearInteractionMessage();
         }
 
         public void OnPointerClick(PointerEventData eventData)
@@ -273,14 +281,14 @@ namespace Mirror
             // Look for a child named "Breadboard"
             Transform child = parent.Find("Breadboard");
             if (child != null) return child;
-            
+
             // If not found at top level, search deeper
             foreach (Transform t in parent)
             {
                 if (t.name.Contains("Breadboard"))
                     return t;
             }
-            
+
             return null;
         }
 
@@ -299,7 +307,7 @@ namespace Mirror
             eulerAngles.x = 0f;
             eulerAngles.y = 180f;
             eulerAngles.z = 0f;
-            
+
             return Quaternion.Euler(eulerAngles);
         }
 
@@ -340,13 +348,13 @@ namespace Mirror
         private void RotateBreadboardChild(Quaternion targetRotation)
         {
             if (breadboardTransform == null) return;
-            
+
             // Cancel any ongoing child rotation tween
             if (childRotationTweenId != -1)
             {
                 LeanTween.cancel(childRotationTweenId);
             }
-            
+
             // Animate the child's local rotation
             childRotationTweenId = LeanTween.rotateLocal(breadboardTransform.gameObject, targetRotation.eulerAngles, transitionDuration)
                 .setEase(easeType)
@@ -360,13 +368,13 @@ namespace Mirror
                 LeanTween.cancel(currentPositionTweenId);
                 currentPositionTweenId = -1;
             }
-            
+
             if (currentRotationTweenId != -1)
             {
                 LeanTween.cancel(currentRotationTweenId);
                 currentRotationTweenId = -1;
             }
-            
+
             if (childRotationTweenId != -1)
             {
                 LeanTween.cancel(childRotationTweenId);
