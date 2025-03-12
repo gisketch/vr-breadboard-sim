@@ -1172,11 +1172,12 @@ public class BreadboardSimulator : MonoBehaviour
             TotalInstructions = 16
         };
 
-        // Add instructions for displaying 0-15
+        // Add instructions for displaying 0-9 and A-F
         for (int i = 0; i < 16; i++)
         {
             string binary = Convert.ToString(i, 2).PadLeft(4, '0');
-            bcdExperiment.InstructionDescriptions[i] = $"Set BCD input to {binary} to display {i}";
+            string display = i < 10 ? i.ToString() : ((char)('A' + (i - 10))).ToString();
+            bcdExperiment.InstructionDescriptions[i] = $"Set BCD input to {binary} to display {display}";
         }
 
         _experiments[bcdExperiment.Id] = bcdExperiment;
