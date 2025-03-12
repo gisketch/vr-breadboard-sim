@@ -4,13 +4,22 @@ using System.Linq;
 using UnityEngine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Mirror;
+using TMPro;
+using UnityEngine.UI;
 
 public class BreadboardSimulator : MonoBehaviour
 {
+
+    public GameObject warningText;
+    public GameObject taskText;
+
     public static BreadboardSimulator Instance { get; private set; }
+
     private void Awake()
     {
         Instance = this;
+        InitializeExperiments();
     }
 
     public enum NodeState
@@ -98,90 +107,130 @@ public class BreadboardSimulator : MonoBehaviour
         public Dictionary<string, object> ComponentStates = new Dictionary<string, object>();
         public List<Net> Nets = new List<Net>();
         public List<BreadboardError> Errors = new List<BreadboardError>();
+        public ExperimentResult ExperimentResult { get; set; }
     }
 
     // Main entry point that takes JSON state and returns simulation results
-    public SimulationResult Run(string jsonState)
+    public SimulationResult Run(string jsonState, BreadboardController bc)
     {
+
+        // Debug the input JSON
+        Debug.Log($"Running simulation with JSON: {jsonState}");
+
+        // 1. Parse JSON (safely)
+        JObject parsedJson;
         try
         {
-            // Debug the input JSON
-            Debug.Log($"Running simulation with JSON: {jsonState}");
+            parsedJson = JObject.Parse(jsonState);
 
-            // 1. Parse JSON (safely)
-            JObject parsedJson;
-            try
+            // Check if "components" exists in the parsed JSON
+            if (parsedJson == null || !parsedJson.ContainsKey("components"))
             {
-                parsedJson = JObject.Parse(jsonState);
-
-                // Check if "components" exists in the parsed JSON
-                if (parsedJson == null || !parsedJson.ContainsKey("components"))
+                Debug.LogError("Invalid JSON format: missing 'components' key");
+                return new SimulationResult
                 {
-                    Debug.LogError("Invalid JSON format: missing 'components' key");
-                    return new SimulationResult
-                    {
-                        Errors = new List<BreadboardError> {
+                    Errors = new List<BreadboardError> {
                             new BreadboardError {
                                 ErrorType = "ParseError",
                                 Description = "Missing 'components' key in JSON"
                             }
                         }
-                    };
-                }
+                };
             }
-            catch (JsonException ex)
+        }
+        catch (JsonException ex)
+        {
+            Debug.LogError($"JSON parsing error: {ex.Message}");
+            return new SimulationResult
             {
-                Debug.LogError($"JSON parsing error: {ex.Message}");
-                return new SimulationResult
-                {
-                    Errors = new List<BreadboardError> {
+                Errors = new List<BreadboardError> {
                         new BreadboardError {
                             ErrorType = "ParseError",
                             Description = $"Error parsing JSON: {ex.Message}"
                         }
                     }
-                };
-            }
-
-            var components = parsedJson["components"];
-
-            // 2. Build electrical network
-            var graph = BuildGraph(components);
-            var nets = IdentifyNets(graph);
-            DetermineInitialStates(nets);
-
-            // 3. Run simulation
-            var errors = DetectErrors(nets);
-            var componentStates = EvaluateComponents(nets, components);
-
-            // 4. Return results with component states and errors
-            var result = new SimulationResult
-            {
-                ComponentStates = componentStates,
-                Nets = nets,
-                Errors = errors
             };
-
-            // Debug the simulation results
-            DebugSimulationResult(result);
-
-            return result;
         }
-        catch (Exception ex)
+
+        var components = parsedJson["components"];
+
+        // 2. Build electrical network
+        var graph = BuildGraph(components);
+        var nets = IdentifyNets(graph);
+        DetermineInitialStates(nets);
+
+        // 3. Run simulation
+        var errors = DetectErrors(nets);
+        var componentStates = EvaluateComponents(nets, components);
+
+        // 4. Return results with component states and errors
+        var result = new SimulationResult
         {
-            // Log any unexpected errors
-            Debug.LogError($"Simulation error: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}");
+            ComponentStates = componentStates,
+            Nets = nets,
+            Errors = errors
+        };
 
-            return new SimulationResult
-            {
-                Errors = new List<BreadboardError> {
-                    new BreadboardError {
-                        ErrorType = "SimulationError",
-                        Description = $"Unexpected error: {ex.Message}"
-                    }
-                }
-            };
+        // Evaluate experiment
+        result.ExperimentResult = EvaluateExperiment(result, components);
+
+        //Clear messages first
+        foreach (Transform child in bc.labMessagesTransform)
+        {
+            Destroy(child.gameObject);
         }
+
+        //Add main instruction
+        GameObject taskMsg = Instantiate(taskText);
+        taskMsg.transform.SetParent(bc.labMessagesTransform);
+        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = _experiments[CurrentExperimentId].InstructionDescriptions[CurrentInstructionIndex];
+        taskMsg.transform.localScale = Vector3.one;
+        taskMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+        taskMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
+
+        //Append messages
+        foreach (string msg in result.ExperimentResult.Messages)
+        {
+            GameObject warningMsg = Instantiate(warningText);
+            warningMsg.transform.SetParent(bc.labMessagesTransform);
+            warningMsg.transform.Find("Message").GetComponent<TMP_Text>().text = msg;
+            warningMsg.transform.localScale = Vector3.one;
+            warningMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+            warningMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
+        }
+
+        //Update Experiment Name
+        TMP_Text experimentName = bc.transform.Find("Canvas").Find("ExperimentName").GetComponent<TMP_Text>();
+        experimentName.text = result.ExperimentResult.ExperimentName;
+
+        //Update Slider (child of experiment name)
+        GameObject taskSlider = experimentName.transform.Find("Task Completion").gameObject;
+        RectTransform fillSlider = taskSlider.transform.Find("Background").Find("Image").GetComponent<RectTransform>();
+        float maxWidthSlider = 160f;
+
+        // Calculate the target fill amount (0 to 1)
+        float targetFillAmount = (float)_completedInstructions[CurrentExperimentId].Count / _experiments[CurrentExperimentId].TotalInstructions;
+        float currentWidth = fillSlider.sizeDelta.x;
+        float targetWidth = maxWidthSlider * targetFillAmount;
+
+        // Animate the fill width
+        LeanTween.value(fillSlider.gameObject, currentWidth, targetWidth, 0.5f)
+            .setEase(LeanTweenType.easeOutQuad)
+            .setOnUpdate((float val) =>
+            {
+                fillSlider.sizeDelta = new Vector2(val, fillSlider.sizeDelta.y);
+            });
+
+        //Update slider text
+        TMP_Text completionText = experimentName.transform.Find("Task Completion Text").GetComponent<TMP_Text>();
+        completionText.text = $"COMPLETED {_completedInstructions[CurrentExperimentId].Count}/{_experiments[CurrentExperimentId].TotalInstructions}";
+
+        // Debug the simulation results
+        DebugSimulationResult(result);
+
+        // Render experiment messages
+        return result;
+
     }
 
     // Helper method for debugging simulation results
@@ -193,15 +242,6 @@ public class BreadboardSimulator : MonoBehaviour
         {
             Debug.Log($"  {comp.Key}: {JsonConvert.SerializeObject(comp.Value)}");
         }
-
-        // Log nets
-        // Debug.Log($"Electrical nets ({result.Nets.Count}):");
-        // foreach (var net in result.Nets)
-        // {
-        //     string nodeList = string.Join(", ", net.Nodes.Take(5));
-        //     if (net.Nodes.Count > 5) nodeList += $"... ({net.Nodes.Count - 5} more)";
-        //     Debug.Log($"  Net {net.Id}: {nodeList} - State: {net.State}, Source: {net.Source}");
-        // }
 
         // Log errors
         Debug.Log($"Errors ({result.Errors.Count}):");
@@ -217,6 +257,9 @@ public class BreadboardSimulator : MonoBehaviour
                 Debug.Log($"    Involved components: {string.Join(", ", error.InvolvedComponents)}");
             }
         }
+
+        Debug.Log($"To-Do: {result.ExperimentResult.MainInstruction}");
+        Debug.Log($"Instructions: {result.ExperimentResult.CompletedInstructions} / {result.ExperimentResult.TotalInstructions}");
     }
 
     // Build the graph representation of the breadboard
@@ -305,14 +348,14 @@ public class BreadboardSimulator : MonoBehaviour
         {
             string componentKey = componentProp.Name;
             JToken componentValue = componentProp.Value;
-            
+
             // Handle wires directly
             if (componentKey.StartsWith("wire"))
             {
                 // Get values from JObject/JToken
                 string startNode = componentValue["startNode"]?.ToString();
                 string endNode = componentValue["endNode"]?.ToString();
-                
+
                 if (!string.IsNullOrEmpty(startNode) && !string.IsNullOrEmpty(endNode))
                 {
                     graph.AddEdge(startNode, endNode);
@@ -322,23 +365,22 @@ public class BreadboardSimulator : MonoBehaviour
                     Debug.LogError($"Wire {componentKey} missing startNode or endNode");
                 }
             }
-            // Handle DIP switches - only connect pins if switch is ON
             else if (componentKey.StartsWith("dipSwitch"))
             {
-                string pin1 = componentValue["pin1"] != null ? componentValue["pin1"].ToString() : 
+                string pin1 = componentValue["pin1"] != null ? componentValue["pin1"].ToString() :
                               componentValue["inputPin"]?.ToString();  // Support both naming conventions
-                
-                string pin2 = componentValue["pin2"] != null ? componentValue["pin2"].ToString() : 
+
+                string pin2 = componentValue["pin2"] != null ? componentValue["pin2"].ToString() :
                               componentValue["outputPin"]?.ToString(); // Support both naming conventions
-                
+
                 bool isOn = componentValue["isOn"] != null ? componentValue["isOn"].Value<bool>() : false;
-                
+
                 if (!string.IsNullOrEmpty(pin1) && !string.IsNullOrEmpty(pin2))
                 {
                     // Make sure both pins exist in the graph
                     graph.AddNode(pin1);
                     graph.AddNode(pin2);
-                    
+
                     // Only connect the pins if the switch is ON
                     if (isOn)
                     {
@@ -347,7 +389,8 @@ public class BreadboardSimulator : MonoBehaviour
                     }
                     else
                     {
-                        Debug.Log($"DIP Switch {componentKey} is OFF, pins {pin1} and {pin2} are disconnected");
+                        Debug.Log($"DIP Switch {componentKey} is OFF, pins {pin1} and {pin2} are disconnected (pull-up applied later)");
+                        // We'll handle the pull-up behavior in the evaluation phase
                     }
                 }
                 else
@@ -505,7 +548,7 @@ public class BreadboardSimulator : MonoBehaviour
     private Dictionary<string, int> GetConnectedNets(JToken component, Dictionary<string, int> nodeToNetMap)
     {
         var connectedNets = new Dictionary<string, int>();
-        
+
         foreach (JProperty property in component.Children<JProperty>())
         {
             if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
@@ -517,8 +560,30 @@ public class BreadboardSimulator : MonoBehaviour
                 }
             }
         }
-        
+
         return connectedNets;
+    }
+
+    // Check if two nodes are electrically connected (in the same net)
+    public bool AreNodesConnected(string nodeA, string nodeB, List<Net> nets)
+    {
+        // Quick check - if nodes are identical, they're connected
+        if (nodeA == nodeB)
+        {
+            return true;
+        }
+
+        // Build node-to-net lookup map
+        var nodeToNetMap = BuildNodeToNetMap(nets);
+
+        // Check if both nodes exist in our nets
+        if (!nodeToNetMap.ContainsKey(nodeA) || !nodeToNetMap.ContainsKey(nodeB))
+        {
+            return false;
+        }
+
+        // Check if nodes are in the same net
+        return nodeToNetMap[nodeA] == nodeToNetMap[nodeB];
     }
 
     // Evaluate all components in the circuit
@@ -541,18 +606,78 @@ public class BreadboardSimulator : MonoBehaviour
             {
                 string componentKey = componentProp.Name;
                 JToken componentValue = componentProp.Value;
-                
-                // Skip wires and DIP switches (already processed in graph building)
-                if (componentKey.StartsWith("wire") || componentKey.StartsWith("dipSwitch"))
+
+                if (componentKey.StartsWith("wire"))
                 {
-                    // For DIP switches, just store their state
-                    if (componentKey.StartsWith("dipSwitch"))
+                    continue;
+                }
+
+                // For DIP switches, apply pull-up behavior to any floating connections
+                if (componentKey.StartsWith("dipSwitch"))
+                {
+                    bool isOn = componentValue["isOn"] != null ?
+                        componentValue["isOn"].Value<bool>() : false;
+
+                    // Get pin information
+                    string pin1 = componentValue["pin1"] != null ? componentValue["pin1"].ToString() :
+                                  componentValue["inputPin"]?.ToString();
+
+                    string pin2 = componentValue["pin2"] != null ? componentValue["pin2"].ToString() :
+                                  componentValue["outputPin"]?.ToString();
+
+                    // If switch is OFF, we need to apply pull-up behavior
+                    if (!isOn && !string.IsNullOrEmpty(pin1) && !string.IsNullOrEmpty(pin2))
                     {
-                        bool isOn = componentValue["isOn"] != null ? 
-                            componentValue["isOn"].Value<bool>() : false;
-                            
-                        componentStates[componentKey] = new { isOn = isOn };
+                        // Check if pins are in nets
+                        bool pin1InNet = nodeToNetMap.ContainsKey(pin1);
+                        bool pin2InNet = nodeToNetMap.ContainsKey(pin2);
+
+                        if (pin1InNet && pin2InNet)
+                        {
+                            int net1Id = nodeToNetMap[pin1];
+                            int net2Id = nodeToNetMap[pin2];
+
+                            // Check if either pin is already connected to a driven signal
+                            bool net1Driven = nets[net1Id].State != NodeState.UNINITIALIZED;
+                            bool net2Driven = nets[net2Id].State != NodeState.UNINITIALIZED;
+
+                            // Apply pull-up to pin2 if pin1 is driven but pin2 is not
+                            if (net1Driven && !net2Driven)
+                            {
+                                nets[net2Id].State = NodeState.HIGH;
+                                nets[net2Id].Source = PowerSource.RAIL;
+                                nets[net2Id].SourceComponent = componentKey;
+                                changed = true;
+                                Debug.Log($"Applied pull-up to pin2 ({pin2}) of {componentKey}");
+                            }
+                            // Apply pull-up to pin1 if pin2 is driven but pin1 is not
+                            else if (!net1Driven && net2Driven)
+                            {
+                                nets[net1Id].State = NodeState.HIGH;
+                                nets[net1Id].Source = PowerSource.RAIL;
+                                nets[net1Id].SourceComponent = componentKey;
+                                changed = true;
+                                Debug.Log($"Applied pull-up to pin1 ({pin1}) of {componentKey}");
+                            }
+                            // If neither is driven, apply pull-up to both pins
+                            else if (!net1Driven && !net2Driven)
+                            {
+                                nets[net1Id].State = NodeState.HIGH;
+                                nets[net1Id].Source = PowerSource.RAIL;
+                                nets[net1Id].SourceComponent = componentKey;
+
+                                nets[net2Id].State = NodeState.HIGH;
+                                nets[net2Id].Source = PowerSource.RAIL;
+                                nets[net2Id].SourceComponent = componentKey;
+
+                                changed = true;
+                                Debug.Log($"Applied pull-up to both pins of {componentKey}");
+                            }
+                            // If both are driven, no action needed
+                        }
                     }
+
+                    componentStates[componentKey] = new { isOn = isOn };
                     continue;
                 }
 
@@ -608,6 +733,7 @@ public class BreadboardSimulator : MonoBehaviour
     private object EvaluateSevenSegment(Dictionary<string, int> connectedNets, List<Net> nets)
     {
         var segments = new Dictionary<string, bool>();
+        bool isGrounded = false;
 
         // For each segment (A-G)
         foreach (var segment in new[] { "A", "B", "C", "D", "E", "F", "G", "DP" })
@@ -632,15 +758,16 @@ public class BreadboardSimulator : MonoBehaviour
                     gndNetId = connectedNets["nodeGnd2"];
                 }
 
+                isGrounded = nets[gndNetId].State == NodeState.LOW;
+
                 // Segment is on when it's HIGH and GND is LOW
-                isOn = nets[segNetId].State == NodeState.HIGH &&
-                       nets[gndNetId].State == NodeState.LOW;
+                isOn = nets[segNetId].State == NodeState.HIGH && isGrounded;
             }
 
             segments[segment] = isOn;
         }
 
-        return new { segments = segments };
+        return new { segments = segments, grounded = isGrounded };
     }
 
     // Evaluate IC component
@@ -648,26 +775,28 @@ public class BreadboardSimulator : MonoBehaviour
         Dictionary<string, int> connectedNets, List<Net> nets, string componentId)
     {
         string icType = ic["type"]?.ToString();
-        
+
         if (string.IsNullOrEmpty(icType))
         {
             return (false, new { status = "Missing IC type" });
         }
 
         // Verify power connections
-        bool hasVcc = connectedNets.ContainsKey("pin16") && 
+        bool hasVcc = connectedNets.ContainsKey("pin16") &&
                      nets[connectedNets["pin16"]].State == NodeState.HIGH;
-        
-        bool hasGnd = connectedNets.ContainsKey("pin8") && 
+
+        bool hasGnd = connectedNets.ContainsKey("pin8") &&
                      nets[connectedNets["pin8"]].State == NodeState.LOW;
-        
+
         // If power connections aren't correct, the IC doesn't function
         if (!hasVcc || !hasGnd)
         {
-            return (false, new { 
-                status = "Inactive", 
-                error = "Power connection issue", 
-                details = $"IC requires proper power connections. Vcc (pin16): {hasVcc}, GND (pin8): {hasGnd}" 
+            return (false, new
+            {
+                type = icType,
+                status = "Inactive",
+                error = "Power connection issue",
+                details = $"IC requires proper power connections. Vcc (pin16): {hasVcc}, GND (pin8): {hasGnd}"
             });
         }
 
@@ -696,7 +825,7 @@ public class BreadboardSimulator : MonoBehaviour
             !connectedNets.ContainsKey("pin2") ||  // C input
             !connectedNets.ContainsKey("pin6"))    // D input
         {
-            return (false, new { error = "Missing BCD input pins" });
+            return (false, new { type = "IC7448", error = "Missing BCD input pins" });
         }
 
         // Get BCD input values
@@ -711,7 +840,7 @@ public class BreadboardSimulator : MonoBehaviour
             nets[connectedNets["pin2"]].State == NodeState.UNINITIALIZED ||
             nets[connectedNets["pin6"]].State == NodeState.UNINITIALIZED)
         {
-            return (false, new { status = "Uninitialized inputs" });
+            return (false, new { type = "IC7448", status = "Uninitialized inputs" });
         }
 
         // Get lamp test, blanking and ripple blanking inputs
@@ -766,6 +895,8 @@ public class BreadboardSimulator : MonoBehaviour
 
         return (statesChanged, new
         {
+            type = "IC7448",
+            status = "Initialized",
             inputs = new { A = inputA, B = inputB, C = inputC, D = inputD },
             control = new { LT = lt, BI_RBO = bi_rbo, RBI = rbi },
             outputs = segments,
@@ -784,7 +915,7 @@ public class BreadboardSimulator : MonoBehaviour
             !connectedNets.ContainsKey("pin2") ||  // A1
             !connectedNets.ContainsKey("pin3"))    // A2
         {
-            return (false, new { error = "Missing address pins" });
+            return (false, new { type = "IC74138", error = "Missing address pins" });
         }
 
         // Get address inputs (A0, A1, A2)
@@ -844,6 +975,7 @@ public class BreadboardSimulator : MonoBehaviour
 
         return (statesChanged, new
         {
+            type = "IC74138",
             address = new { A0 = a0, A1 = a1, A2 = a2 },
             enable = new { E1 = e1, E2 = e2, E3 = e3 },
             outputs = outputs,
@@ -858,7 +990,7 @@ public class BreadboardSimulator : MonoBehaviour
         bool statesChanged = false;
 
         // Get enable input (EI) - active LOW
-        bool ei = !connectedNets.ContainsKey("pin5") || 
+        bool ei = !connectedNets.ContainsKey("pin5") ||
                   nets[connectedNets["pin5"]].State == NodeState.LOW;
 
         // Initialize inputs array (all HIGH/inactive by default)
@@ -872,31 +1004,31 @@ public class BreadboardSimulator : MonoBehaviour
         // Input 0 (pin 10)
         if (connectedNets.ContainsKey("pin10"))
             inputs[0] = nets[connectedNets["pin10"]].State == NodeState.LOW;
-        
+
         // Input 1 (pin 11)
         if (connectedNets.ContainsKey("pin11"))
             inputs[1] = nets[connectedNets["pin11"]].State == NodeState.LOW;
-        
+
         // Input 2 (pin 12)
         if (connectedNets.ContainsKey("pin12"))
             inputs[2] = nets[connectedNets["pin12"]].State == NodeState.LOW;
-        
+
         // Input 3 (pin 13)
         if (connectedNets.ContainsKey("pin13"))
             inputs[3] = nets[connectedNets["pin13"]].State == NodeState.LOW;
-        
+
         // Input 4 (pin 1)
         if (connectedNets.ContainsKey("pin1"))
             inputs[4] = nets[connectedNets["pin1"]].State == NodeState.LOW;
-        
+
         // Input 5 (pin 2)
         if (connectedNets.ContainsKey("pin2"))
             inputs[5] = nets[connectedNets["pin2"]].State == NodeState.LOW;
-        
+
         // Input 6 (pin 3)
         if (connectedNets.ContainsKey("pin3"))
             inputs[6] = nets[connectedNets["pin3"]].State == NodeState.LOW;
-        
+
         // Input 7 (pin 4)
         if (connectedNets.ContainsKey("pin4"))
             inputs[7] = nets[connectedNets["pin4"]].State == NodeState.LOW;
@@ -966,6 +1098,7 @@ public class BreadboardSimulator : MonoBehaviour
 
         return (statesChanged, new
         {
+            type = "IC74148",
             inputsState = inputs,
             enableIn = ei,
             highestPriority = highestActive,
@@ -973,7 +1106,6 @@ public class BreadboardSimulator : MonoBehaviour
         });
     }
 
-  
     // Get 7-segment pattern for a given value (0-15)
     private Dictionary<string, bool> Get7SegmentPattern(int value)
     {
@@ -1016,4 +1148,399 @@ public class BreadboardSimulator : MonoBehaviour
 
         return result;
     }
+
+    // Current experiment state
+    public int CurrentExperimentId { get; set; } = 2;
+    public int CurrentInstructionIndex { get; set; } = 0;
+
+    // Track completed instructions
+    private Dictionary<int, HashSet<int>> _completedInstructions = new Dictionary<int, HashSet<int>>();
+
+    // Experiment definitions
+    private Dictionary<int, ExperimentDefinition> _experiments;
+
+    private void InitializeExperiments()
+    {
+        _experiments = new Dictionary<int, ExperimentDefinition>();
+
+        // BCD to 7-Segment experiment (Experiment 2)
+        var bcdExperiment = new ExperimentDefinition
+        {
+            Id = 2,
+            Name = "BCD to 7-Segment Display",
+            Description = "Connect DIP switches to a 7448 IC to display decimal digits on a 7-segment display.",
+            TotalInstructions = 16
+        };
+
+        // Add instructions for displaying 0-15
+        for (int i = 0; i < 16; i++)
+        {
+            string binary = Convert.ToString(i, 2).PadLeft(4, '0');
+            bcdExperiment.InstructionDescriptions[i] = $"Set BCD input to {binary} to display {i}";
+        }
+
+        _experiments[bcdExperiment.Id] = bcdExperiment;
+        _completedInstructions[bcdExperiment.Id] = new HashSet<int>();
+    }
+
+    public ExperimentDefinition GetCurrentExperiment()
+    {
+        return _experiments.TryGetValue(CurrentExperimentId, out var experiment) ? experiment : null;
+    }
+
+    public void NextInstruction()
+    {
+        var experiment = GetCurrentExperiment();
+        if (experiment != null && CurrentInstructionIndex < experiment.TotalInstructions - 1)
+        {
+            CurrentInstructionIndex++;
+        }
+    }
+
+    public void PreviousInstruction()
+    {
+        if (CurrentInstructionIndex > 0)
+        {
+            CurrentInstructionIndex--;
+        }
+    }
+
+    public ExperimentResult EvaluateExperiment(SimulationResult simResult, JToken components)
+    {
+        var experiment = GetCurrentExperiment();
+        if (experiment == null)
+        {
+            return new ExperimentResult
+            {
+                ExperimentId = CurrentExperimentId,
+                Messages = new List<string> { $"Unknown experiment ID: {CurrentExperimentId}" },
+                MainInstruction = "Error: Invalid experiment selected",
+                IsSetupValid = false
+            };
+        }
+
+        switch (CurrentExperimentId)
+        {
+            case 2:
+                return EvaluateBCDTo7SegmentExperiment(simResult, experiment, components);
+            default:
+                return new ExperimentResult
+                {
+                    ExperimentId = CurrentExperimentId,
+                    Messages = new List<string> { $"No evaluation implemented for experiment {CurrentExperimentId}" },
+                    MainInstruction = "Error: Experiment not implemented",
+                    IsSetupValid = false
+                };
+        }
+    }
+
+    private ExperimentResult EvaluateBCDTo7SegmentExperiment(
+        SimulationResult simResult,
+        ExperimentDefinition experiment,
+        JToken components)
+    {
+        var result = new ExperimentResult
+        {
+            ExperimentName = experiment.Name,
+            ExperimentId = experiment.Id,
+            TotalInstructions = experiment.TotalInstructions,
+            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
+            InstructionResults = new Dictionary<int, bool>(),
+            Messages = new List<string>(),
+            IsSetupValid = true
+        };
+
+        // Count components and validate types
+        int ic7448Count = 0;
+        int sevenSegCount = 0;
+        int dipSwitchCount = 0;
+
+        string mainIc = "";
+        string mainSevenSeg = "";
+
+        // Get component data
+        dynamic ic7448State = null;
+        dynamic sevenSegState = null;
+
+        foreach (var comp in simResult.ComponentStates)
+        {
+            if (comp.Key.StartsWith("ic"))
+            {
+                dynamic dynamicValue = comp.Value;
+                string typeValue = dynamicValue.type;
+
+                if (typeValue == "IC7448")
+                {
+                    ic7448Count++;
+                    ic7448State = dynamicValue;
+                    mainIc = comp.Key;
+                }
+            }
+            else if (comp.Key.StartsWith("sevenSeg"))
+            {
+                sevenSegCount++;
+                sevenSegState = comp.Value;
+                mainSevenSeg = comp.Key;
+            }
+            else if (comp.Key.StartsWith("dipSwitch"))
+            {
+                dipSwitchCount++;
+            }
+        }
+
+        // Validate component counts
+        if (ic7448Count != 1)
+        {
+            result.Messages.Add($"Expected exactly 1 IC 7448, found {ic7448Count}");
+            result.IsSetupValid = false;
+        }
+
+        if (sevenSegCount != 1)
+        {
+            result.Messages.Add($"Expected exactly 1 seven-segment display, found {sevenSegCount}");
+            result.IsSetupValid = false;
+        }
+
+        if (dipSwitchCount < 4)
+        {
+            result.Messages.Add($"Expected at least 4 DIP switches, found {dipSwitchCount}");
+            result.IsSetupValid = false;
+        }
+
+        // Only proceed with detailed checks if basic components are present
+        if (ic7448State != null && sevenSegState != null)
+        {
+            // Check if 7-segment is grounded
+            bool sevenSegGrounded = false;
+            try
+            {
+                sevenSegGrounded = sevenSegState.grounded;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot access seven-segment grounding status");
+                result.IsSetupValid = false;
+            }
+
+            if (!sevenSegGrounded)
+            {
+                result.Messages.Add("Seven-segment display is not properly grounded");
+                result.IsSetupValid = false;
+            }
+
+            // Check IC 7448 control pins (LT, BI_RBO, RBI)
+            bool ltActive = false;
+            bool biRboActive = false;
+            bool rbiActive = false;
+
+            try
+            {
+                ltActive = ic7448State.control.LT;
+                biRboActive = ic7448State.control.BI_RBO;
+                rbiActive = ic7448State.control.RBI;
+            }
+            catch (Exception)
+            {
+                result.IsSetupValid = false;
+            }
+
+            // Add individual messages for each control pin
+            if (!ltActive)
+            {
+                result.Messages.Add("IC 7448 LT pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            if (!biRboActive)
+            {
+                result.Messages.Add("IC 7448 BI_RBO pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            if (!rbiActive)
+            {
+                result.Messages.Add("IC 7448 RBI pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            // Check if IC has uninitialized inputs
+            string status = "";
+            try
+            {
+                status = ic7448State.status;
+
+                if (status == "Uninitialized inputs")
+                {
+                    result.Messages.Add("IC 7448 has uninitialized inputs. Check DIP switch connections.");
+                    result.IsSetupValid = false;
+                }
+            }
+            catch (Exception)
+            {
+                Debug.Log("No status");
+            }
+
+            // Extract ic1 and sevenSeg1 objects
+            JToken icComp = null;
+            JToken sevenSegComp = null;
+
+            foreach (JProperty componentProp in components)
+            {
+                if (componentProp.Name.Equals(mainIc))
+                {
+                    icComp = componentProp.Value;
+                }
+                else if (componentProp.Name.Equals(mainSevenSeg))
+                {
+                    sevenSegComp = componentProp.Value;
+                }
+            }
+
+            // Check if required components are found
+            if (icComp == null || sevenSegComp == null)
+            {
+                result.Messages.Add("Missing IC and Seven Segment components.");
+                result.IsSetupValid = false;
+            }
+
+            // Define all the connections that need to be checked
+            Dictionary<string, string> connectionChecks = new Dictionary<string, string>
+                {
+                    { "pin13", "nodeA" },
+                    { "pin12", "nodeB" },
+                    { "pin11", "nodeC" },
+                    { "pin10", "nodeD" },
+                    { "pin9", "nodeE" },
+                    { "pin14", "nodeG" },
+                    { "pin15", "nodeF" }
+                };
+
+            // Check all required connections
+            bool allConnected = true;
+
+            foreach (var check in connectionChecks)
+            {
+                string pinKey = check.Key;
+                string nodeKey = check.Value;
+
+                string pinValue = icComp[pinKey]?.ToString();
+                string nodeValue = sevenSegComp[nodeKey]?.ToString();
+
+                if (string.IsNullOrEmpty(pinValue) || string.IsNullOrEmpty(nodeValue))
+                {
+                    allConnected = false;
+                    continue;
+                }
+
+                if (!AreNodesConnected(pinValue, nodeValue, simResult.Nets))
+                {
+                    allConnected = false;
+                }
+            }
+
+            if (!allConnected)
+            {
+                result.Messages.Add("IC7448 outputs are not properly connected to Seven Segment inputs.");
+                result.IsSetupValid = false;
+            }
+        }
+
+        // Only evaluate the experiment if the setup is valid
+        if (result.IsSetupValid)
+        {
+            // Get expected BCD input for current instruction (0000 to 1111)
+            bool[] expectedBits = new bool[4];
+            for (int i = 0; i < 4; i++)
+            {
+                expectedBits[i] = ((CurrentInstructionIndex >> i) & 1) == 1;
+            }
+
+            // Get actual IC inputs
+            bool inputA = false, inputB = false, inputC = false, inputD = false;
+            try
+            {
+                inputA = ic7448State.inputs.A;
+                inputB = ic7448State.inputs.B;
+                inputC = ic7448State.inputs.C;
+                inputD = ic7448State.inputs.D;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot evaluate: IC inputs not found in simulation result");
+                result.InstructionResults[CurrentInstructionIndex] = false;
+                return result;
+            }
+
+            // Compare expected and actual inputs
+            bool[] actualBits = new[] { inputA, inputB, inputC, inputD };
+            bool allMatch = true;
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (actualBits[i] != expectedBits[i])
+                {
+                    allMatch = false;
+                    break;
+                }
+            }
+
+            result.InstructionResults[CurrentInstructionIndex] = allMatch;
+
+            if (allMatch)
+            {
+                // Mark instruction as completed
+                _completedInstructions[experiment.Id].Add(CurrentInstructionIndex);
+                result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
+
+                NextInstruction();
+            }
+
+        }
+
+        return result;
+    }
+
+    private void DebugLogCompletedInstructions()
+    {
+        Debug.Log("=== Completed Instructions Status ===");
+        foreach (var experimentKvp in _completedInstructions)
+        {
+            int experimentId = experimentKvp.Key;
+            var completedSet = experimentKvp.Value;
+
+            string completedStr = string.Join(", ", completedSet.OrderBy(x => x));
+            string experimentName = _experiments.ContainsKey(experimentId) ?
+                _experiments[experimentId].Name : $"Unknown Experiment {experimentId}";
+
+            Debug.Log($"Experiment {experimentId} ({experimentName}):");
+            Debug.Log($"├── Completed: [{completedStr}]");
+            Debug.Log($"└── Progress: {completedSet.Count}/{_experiments[experimentId].TotalInstructions} instructions");
+        }
+        Debug.Log("===================================");
+    }
+
+}
+
+
+// Support classes for experiment evaluation
+public class ExperimentDefinition
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public int TotalInstructions { get; set; }
+    public Dictionary<int, string> InstructionDescriptions { get; set; } = new Dictionary<int, string>();
+}
+
+// Update the ExperimentResult class to support multiple messages
+public class ExperimentResult
+{
+    public string ExperimentName { get; set; }
+    public int ExperimentId { get; set; }
+    public Dictionary<int, bool> InstructionResults { get; set; } = new Dictionary<int, bool>();
+    public int CompletedInstructions { get; set; }
+    public int TotalInstructions { get; set; }
+    public List<string> Messages { get; set; } = new List<string>();
+    public string MainInstruction { get; set; }
+    public bool IsSetupValid { get; set; }
 }

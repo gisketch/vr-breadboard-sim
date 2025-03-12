@@ -161,10 +161,6 @@ public class DipSwitchTool : MonoBehaviour, IComponentTool
             BreadboardStateUtils.Instance.AddDipSwitch(node.name);
             isAllowed = false;
         }
-        else
-        {
-            Debug.Log("Cannot place: placement not allowed, or node is null.");
-        }
     }
 
     public void Deactivate()

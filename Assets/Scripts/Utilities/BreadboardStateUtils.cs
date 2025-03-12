@@ -355,7 +355,7 @@ public class BreadboardStateUtils : MonoBehaviour
         if (simulator != null)
         {
             Debug.Log("Running breadboard simulation...");
-            var result = simulator.Run(breadboardStateJson);
+            var result = simulator.Run(breadboardStateJson, bc);
 
             // Handle the result
             if (result.Errors.Count > 0)
@@ -596,7 +596,6 @@ public class BreadboardStateUtils : MonoBehaviour
 
     private void CreateSevenSegmentComponent(BreadboardComponentData sevenSeg, Transform parent, string name, Dictionary<string, bool> segments)
     {
-        Debug.Log("CREATED 7 SEG");
         if (string.IsNullOrEmpty(sevenSeg.nodeB))
         {
             Debug.LogWarning("Invalid SEVEN SEGMENT configuration");
@@ -620,7 +619,6 @@ public class BreadboardStateUtils : MonoBehaviour
 
     private void CreateICComponent(BreadboardComponentData ic, Transform parent, string name)
     {
-        Debug.Log("CREATED IC component");
         if (string.IsNullOrEmpty(ic.pin1) || string.IsNullOrEmpty(ic.icType))
         {
             Debug.LogWarning("Invalid IC configuration");
@@ -644,7 +642,6 @@ public class BreadboardStateUtils : MonoBehaviour
 
     private void CreateDipSwitchComponent(BreadboardComponentData dipSwitch, Transform parent, string name)
     {
-        Debug.Log("CREATED DipSwitch component");
         if (string.IsNullOrEmpty(dipSwitch.pin1))
         {
             Debug.LogWarning("Invalid dip switch configuration");

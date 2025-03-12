@@ -145,12 +145,10 @@ namespace Mirror
                 if (isDescending)
                 {
                     GameManager.Instance.SetInteractionMessage("Descending. Press D to stop.");
-                    Debug.Log("Started descending");
                 }
                 else
                 {
                     GameManager.Instance.ClearInteractionMessage();
-                    Debug.Log("Stopped descending");
                 }
             }
             // Toggle ascending state when the ascend button is pressed
@@ -169,12 +167,10 @@ namespace Mirror
                 if (isAscending)
                 {
                     GameManager.Instance.SetInteractionMessage("Ascending. Press C to stop.");
-                    Debug.Log("Started ascending");
                 }
                 else
                 {
                     GameManager.Instance.ClearInteractionMessage();
-                    Debug.Log("Stopped ascending");
                 }
             }
 

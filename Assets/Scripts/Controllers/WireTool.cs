@@ -43,9 +43,6 @@ public class WireTool : MonoBehaviour, IComponentTool
                 previewLine.material = Resources.Load<Material>("Materials/WireBlue");
                 break;
         }
-
-        Debug.Log("Updated to " + ComponentManager.Instance.currentColor);
-
     }
     
     public void Deactivate()

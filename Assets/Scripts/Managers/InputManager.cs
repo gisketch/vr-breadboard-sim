@@ -40,12 +40,12 @@ public class InputManager : MonoBehaviour
 
     public bool GetPrimaryButton()
     {
-        return Input.GetKey(KeyCode.M) || Input.GetKey("joystick button 0");
+        return Input.GetKey(KeyCode.Mouse0) || Input.GetKey("joystick button 0");
     }
 
     public bool GetPrimaryButtonDown()
     {
-        return Input.GetKeyDown(KeyCode.M) || Input.GetKeyDown("joystick button 0");
+        return Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown("joystick button 0");
     }
 
     public bool GetSecondaryButton()

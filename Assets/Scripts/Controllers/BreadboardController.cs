@@ -38,6 +38,8 @@ namespace Mirror
 
         private bool isHovering = false;
 
+        public Transform labMessagesTransform;
+
         void Awake()
         {
             // Find the breadboard child transform
@@ -93,7 +95,6 @@ namespace Mirror
 
         void OnBreadboardComponentsChanged(SyncIDictionary<string, BreadboardComponentData>.Operation op, string key, BreadboardComponentData item)
         {
-            Debug.Log($"Breadboard component changed: {op} {key}");
             BreadboardStateUtils.Instance.VisualizeBreadboard(this);
         }
 
@@ -245,6 +246,7 @@ namespace Mirror
             {
                 CmdToggleSimMode(true);
                 GameManager.Instance.ClearInteractionMessage();
+                BreadboardStateUtils.Instance.VisualizeBreadboard(this);
             }
         }
 
