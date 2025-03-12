@@ -31,25 +31,20 @@ public class BreadboardStateUtils : MonoBehaviour
     // Wire: startNode, endNode, color
     public void AddWire(string startNode, string endNode, string color)
     {
-        try
-        {
-            wireCounter++;
-            string wireId = $"wire{wireCounter}";
 
-            BreadboardComponentData wire = new BreadboardComponentData
-            {
-                type = "wire",
-                startNode = startNode,
-                endNode = endNode,
-                color = color
-            };
+        wireCounter++;
+        string wireId = $"wire{wireCounter}";
 
-            myBreadboardController.CmdAddComponent(wireId, wire);
-        }
-        catch (Exception e)
+        BreadboardComponentData wire = new BreadboardComponentData
         {
-            Debug.LogError($"Error adding wire: {e.Message}");
-        }
+            type = "wire",
+            startNode = startNode,
+            endNode = endNode,
+            color = color
+        };
+
+        myBreadboardController.CmdAddComponent(wireId, wire);
+
     }
 
     // LED: anode, cathode, color
@@ -63,6 +58,7 @@ public class BreadboardStateUtils : MonoBehaviour
             BreadboardComponentData led = new BreadboardComponentData
             {
                 type = "led",
+                ledId = ledId,
                 anode = anode,
                 cathode = cathode,
                 color = color

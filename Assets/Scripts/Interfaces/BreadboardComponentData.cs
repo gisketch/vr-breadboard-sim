@@ -14,7 +14,8 @@ public struct BreadboardComponentData
     // LED fields
     public string anode;
     public string cathode;
-    
+    public string ledId;
+
     // Common field
     public string color;
     

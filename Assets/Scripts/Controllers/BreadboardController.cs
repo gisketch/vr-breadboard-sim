@@ -98,10 +98,68 @@ namespace Mirror
             BreadboardStateUtils.Instance.VisualizeBreadboard(this);
         }
 
+        private void SaveBreadboardState(int slot)
+        {
+            if (!hasAuthority) return;
+
+            // Convert SyncDictionary to JSON
+            Dictionary<string, BreadboardComponentData> regularDict = new Dictionary<string, BreadboardComponentData>();
+            foreach (var kvp in breadboardComponents)
+            {
+                regularDict[kvp.Key] = kvp.Value;
+            }
+
+            string jsonState = JsonUtility.ToJson(new SerializableBreadboardState(regularDict));
+            PlayerPrefs.SetString($"BreadboardState_Slot{slot}", jsonState);
+            PlayerPrefs.Save();
+            Debug.Log($"Saved breadboard state to slot {slot}");
+        }
+
+        private void LoadBreadboardState(int slot)
+        {
+            if (!hasAuthority) return;
+
+            string jsonState = PlayerPrefs.GetString($"BreadboardState_Slot{slot}", "");
+            if (string.IsNullOrEmpty(jsonState))
+            {
+                Debug.Log($"No saved state found in slot {slot}");
+                return;
+            }
+
+            SerializableBreadboardState loadedState = JsonUtility.FromJson<SerializableBreadboardState>(jsonState);
+
+            // Clear current components
+            CmdClearAllComponents();
+
+            // Add loaded components
+            foreach (var kvp in loadedState.components)
+            {
+                CmdAddComponent(kvp.Key, kvp.Value);
+            }
+
+            Debug.Log($"Loaded breadboard state from slot {slot}");
+        }
+
         void Update()
         {
             if (hasInitialized)
             {
+                if (hasAuthority)
+                {
+                    if (Input.GetKeyDown(KeyCode.Alpha1)) LoadBreadboardState(1);
+                    if (Input.GetKeyDown(KeyCode.Alpha2)) LoadBreadboardState(2);
+                    if (Input.GetKeyDown(KeyCode.Alpha3)) LoadBreadboardState(3);
+                    if (Input.GetKeyDown(KeyCode.Alpha4)) LoadBreadboardState(4);
+
+                    if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+                    {
+                        if (Input.GetKeyDown(KeyCode.Z)) SaveBreadboardState(1);
+                        if (Input.GetKeyDown(KeyCode.X)) SaveBreadboardState(2);
+                        if (Input.GetKeyDown(KeyCode.C)) SaveBreadboardState(3);
+                        if (Input.GetKeyDown(KeyCode.D)) SaveBreadboardState(4);
+                    }
+                }
+
                 if (isHovering && hasAuthority && InputManager.Instance.GetPrimaryButtonDown())
                 {
                     ClickOwner();
@@ -383,5 +441,33 @@ namespace Mirror
                 childRotationTweenId = -1;
             }
         }
+    }
+
+    [Serializable]
+    public class SerializableBreadboardState
+    {
+        public SerializableKeyValuePair[] components;
+
+        public SerializableBreadboardState(Dictionary<string, BreadboardComponentData> dict)
+        {
+            components = new SerializableKeyValuePair[dict.Count];
+            int i = 0;
+            foreach (var kvp in dict)
+            {
+                components[i] = new SerializableKeyValuePair
+                {
+                    Key = kvp.Key,
+                    Value = kvp.Value
+                };
+                i++;
+            }
+        }
+    }
+
+    [Serializable]
+    public class SerializableKeyValuePair
+    {
+        public string Key;
+        public BreadboardComponentData Value;
     }
 }

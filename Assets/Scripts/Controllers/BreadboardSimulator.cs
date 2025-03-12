@@ -225,41 +225,34 @@ public class BreadboardSimulator : MonoBehaviour
         TMP_Text completionText = experimentName.transform.Find("Task Completion Text").GetComponent<TMP_Text>();
         completionText.text = $"COMPLETED {_completedInstructions[CurrentExperimentId].Count}/{_experiments[CurrentExperimentId].TotalInstructions}";
 
-        // Debug the simulation results
-        DebugSimulationResult(result);
+        //Clear button events here
+        Button prevExperiment = experimentName.transform.Find("PrevExperiment").GetComponent<Button>();
+        Button nextExperiment = experimentName.transform.Find("NextExperiment").GetComponent<Button>();
+
+        prevExperiment.onClick.RemoveAllListeners();
+        nextExperiment.onClick.RemoveAllListeners();
+
+        //Add button events
+        prevExperiment.onClick.AddListener(() =>
+        {
+            BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
+            PreviousExperiment();
+        });
+
+        //Add button events
+        nextExperiment.onClick.AddListener(() =>
+        {
+            BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
+            NextExperiment();
+        });
 
         // Render experiment messages
+        foreach (var kvp in result.ComponentStates)
+        {
+            Debug.Log($"Component {kvp.Key}: {Newtonsoft.Json.JsonConvert.SerializeObject(kvp.Value, Newtonsoft.Json.Formatting.Indented)}");
+        }
         return result;
 
-    }
-
-    // Helper method for debugging simulation results
-    private void DebugSimulationResult(SimulationResult result)
-    {
-        // Log component states
-        Debug.Log($"Component states ({result.ComponentStates.Count}):");
-        foreach (var comp in result.ComponentStates)
-        {
-            Debug.Log($"  {comp.Key}: {JsonConvert.SerializeObject(comp.Value)}");
-        }
-
-        // Log errors
-        Debug.Log($"Errors ({result.Errors.Count}):");
-        foreach (var error in result.Errors)
-        {
-            Debug.Log($"  {error.ErrorType}: {error.Description}");
-            if (error.AffectedNodes.Count > 0)
-            {
-                Debug.Log($"    Affected nodes: {string.Join(", ", error.AffectedNodes)}");
-            }
-            if (error.InvolvedComponents.Count > 0)
-            {
-                Debug.Log($"    Involved components: {string.Join(", ", error.InvolvedComponents)}");
-            }
-        }
-
-        Debug.Log($"To-Do: {result.ExperimentResult.MainInstruction}");
-        Debug.Log($"Instructions: {result.ExperimentResult.CompletedInstructions} / {result.ExperimentResult.TotalInstructions}");
     }
 
     // Build the graph representation of the breadboard
@@ -551,7 +544,7 @@ public class BreadboardSimulator : MonoBehaviour
 
         foreach (JProperty property in component.Children<JProperty>())
         {
-            if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
+            if (property.Name != "type" && property.Name != "color" && property.Name != "isOn" && property.Name != "ledId")
             {
                 string node = property.Value.ToString();
                 if (!string.IsNullOrEmpty(node) && nodeToNetMap.ContainsKey(node))
@@ -726,7 +719,11 @@ public class BreadboardSimulator : MonoBehaviour
         bool isOn = nets[anodeNetId].State == NodeState.HIGH &&
                     nets[cathodeNetId].State == NodeState.LOW;
 
-        return new { isOn = isOn };
+        return new
+        {
+            isOn = isOn,
+            grounded = nets[cathodeNetId].State == NodeState.LOW
+        };
     }
 
     // Evaluate Seven-Segment Display
@@ -924,25 +921,25 @@ public class BreadboardSimulator : MonoBehaviour
         bool a2 = nets[connectedNets["pin3"]].State == NodeState.HIGH;
 
         // Get enable inputs (E1, E2, E3) with defaults
-        bool e1 = connectedNets.ContainsKey("pin4") && nets[connectedNets["pin4"]].State == NodeState.HIGH;
+        bool e1 = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.LOW;
         bool e2 = !connectedNets.ContainsKey("pin5") || nets[connectedNets["pin5"]].State == NodeState.LOW;
-        bool e3 = !connectedNets.ContainsKey("pin6") || nets[connectedNets["pin6"]].State == NodeState.LOW;
+        bool e3 = connectedNets.ContainsKey("pin6") && nets[connectedNets["pin6"]].State == NodeState.HIGH;
 
         // Calculate binary address (0-7)
         int address = (a2 ? 4 : 0) + (a1 ? 2 : 0) + (a0 ? 1 : 0);
 
-        // Initialize all outputs as HIGH (inactive)
+        // Initialize all outputs as HIGH
         var outputs = new Dictionary<string, bool>();
         for (int i = 0; i < 8; i++)
         {
-            outputs["O" + i] = true;  // Active LOW outputs, so HIGH means inactive
+            outputs["O" + i] = false;
         }
 
         // Set active output if enabled (E1 high, E2 and E3 low)
         bool enabled = e1 && e2 && e3;
         if (enabled)
         {
-            outputs["O" + address] = false;  // Selected output is LOW (active)
+            outputs["O" + address] = true;
         }
 
         // Output pin mapping
@@ -976,6 +973,7 @@ public class BreadboardSimulator : MonoBehaviour
         return (statesChanged, new
         {
             type = "IC74138",
+            status = "Initialized",
             address = new { A0 = a0, A1 = a1, A2 = a2 },
             enable = new { E1 = e1, E2 = e2, E3 = e3 },
             outputs = outputs,
@@ -1150,7 +1148,7 @@ public class BreadboardSimulator : MonoBehaviour
     }
 
     // Current experiment state
-    public int CurrentExperimentId { get; set; } = 2;
+    public int CurrentExperimentId { get; set; } = 1;
     public int CurrentInstructionIndex { get; set; } = 0;
 
     // Track completed instructions
@@ -1162,6 +1160,26 @@ public class BreadboardSimulator : MonoBehaviour
     private void InitializeExperiments()
     {
         _experiments = new Dictionary<int, ExperimentDefinition>();
+
+        // Decoder experiment (Experiment 1)
+        var decoderExperiment = new ExperimentDefinition
+        {
+            Id = 1,
+            Name = "IC 74138 Decoder",
+            Description = "Lol",
+            TotalInstructions = 8
+        };
+
+        // Add instructions for inputs 000 to 111
+        for (int i = 0; i < 8; i++)
+        {
+            string binary = Convert.ToString(i, 2).PadLeft(3, '0');
+            decoderExperiment.InstructionDescriptions[i] = $"Set input to {binary}";
+        }
+
+        _experiments[decoderExperiment.Id] = decoderExperiment;
+        _completedInstructions[decoderExperiment.Id] = new HashSet<int>();
+
 
         // BCD to 7-Segment experiment (Experiment 2)
         var bcdExperiment = new ExperimentDefinition
@@ -1187,6 +1205,57 @@ public class BreadboardSimulator : MonoBehaviour
     public ExperimentDefinition GetCurrentExperiment()
     {
         return _experiments.TryGetValue(CurrentExperimentId, out var experiment) ? experiment : null;
+    }
+
+    // Dictionary to store the last instruction index for each experiment
+    private Dictionary<int, int> _lastInstructionIndices = new Dictionary<int, int>();
+
+    public void NextExperiment()
+    {
+        // Save current instruction index for the current experiment
+        _lastInstructionIndices[CurrentExperimentId] = CurrentInstructionIndex;
+
+        // Find the next valid experiment ID
+        int nextExperimentId = CurrentExperimentId + 1;
+        while (nextExperimentId <= _experiments.Keys.Max() && !_experiments.ContainsKey(nextExperimentId))
+        {
+            nextExperimentId++;
+        }
+
+        // If we found a valid next experiment
+        if (_experiments.ContainsKey(nextExperimentId))
+        {
+            CurrentExperimentId = nextExperimentId;
+
+            // Restore the last instruction index for this experiment, or default to 0
+            CurrentInstructionIndex = _lastInstructionIndices.ContainsKey(CurrentExperimentId)
+                ? _lastInstructionIndices[CurrentExperimentId]
+                : 0;
+        }
+    }
+
+    public void PreviousExperiment()
+    {
+        // Save current instruction index for the current experiment
+        _lastInstructionIndices[CurrentExperimentId] = CurrentInstructionIndex;
+
+        // Find the previous valid experiment ID
+        int prevExperimentId = CurrentExperimentId - 1;
+        while (prevExperimentId >= _experiments.Keys.Min() && !_experiments.ContainsKey(prevExperimentId))
+        {
+            prevExperimentId--;
+        }
+
+        // If we found a valid previous experiment
+        if (_experiments.ContainsKey(prevExperimentId))
+        {
+            CurrentExperimentId = prevExperimentId;
+
+            // Restore the last instruction index for this experiment, or default to 0
+            CurrentInstructionIndex = _lastInstructionIndices.ContainsKey(CurrentExperimentId)
+                ? _lastInstructionIndices[CurrentExperimentId]
+                : 0;
+        }
     }
 
     public void NextInstruction()
@@ -1222,6 +1291,8 @@ public class BreadboardSimulator : MonoBehaviour
 
         switch (CurrentExperimentId)
         {
+            case 1:
+                return Evaluate74138To8LED(simResult, experiment, components);
             case 2:
                 return EvaluateBCDTo7SegmentExperiment(simResult, experiment, components);
             default:
@@ -1501,25 +1572,263 @@ public class BreadboardSimulator : MonoBehaviour
         return result;
     }
 
-    private void DebugLogCompletedInstructions()
+    private ExperimentResult Evaluate74138To8LED(
+        SimulationResult simResult,
+        ExperimentDefinition experiment,
+        JToken components)
     {
-        Debug.Log("=== Completed Instructions Status ===");
-        foreach (var experimentKvp in _completedInstructions)
+        var result = new ExperimentResult
         {
-            int experimentId = experimentKvp.Key;
-            var completedSet = experimentKvp.Value;
+            ExperimentName = experiment.Name,
+            ExperimentId = experiment.Id,
+            TotalInstructions = experiment.TotalInstructions,
+            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
+            InstructionResults = new Dictionary<int, bool>(),
+            Messages = new List<string>(),
+            IsSetupValid = true
+        };
 
-            string completedStr = string.Join(", ", completedSet.OrderBy(x => x));
-            string experimentName = _experiments.ContainsKey(experimentId) ?
-                _experiments[experimentId].Name : $"Unknown Experiment {experimentId}";
+        // Count components and validate types
+        int ic74138Count = 0;
+        int ledCount = 0;
+        int dipSwitchCount = 0;
 
-            Debug.Log($"Experiment {experimentId} ({experimentName}):");
-            Debug.Log($"├── Completed: [{completedStr}]");
-            Debug.Log($"└── Progress: {completedSet.Count}/{_experiments[experimentId].TotalInstructions} instructions");
+        string mainIc = "";
+        List<string> mainLeds = new List<string>();
+
+        // Get component data
+        dynamic ic74138State = null;
+        List<dynamic> ledStates = new List<dynamic>();
+
+        foreach (var comp in simResult.ComponentStates)
+        {
+            if (comp.Key.StartsWith("ic"))
+            {
+                dynamic dynamicValue = comp.Value; // {type: "IC74138", address: {A0: bool, A1: bool, A2: bool}, ...}
+                string typeValue = dynamicValue.type; // IC74138
+
+                if (typeValue == "IC74138")
+                {
+                    ic74138Count++;
+                    ic74138State = dynamicValue;
+                    mainIc = comp.Key;
+                }
+            }
+            else if (comp.Key.StartsWith("led"))
+            {
+                dynamic dynamicValue = comp.Value;
+                ledCount++;
+                mainLeds.Add(comp.Key);
+                ledStates.Add(comp.Value);
+            }
+            else if (comp.Key.StartsWith("dipSwitch"))
+            {
+                dipSwitchCount++;
+            }
         }
-        Debug.Log("===================================");
-    }
 
+        // Validate component counts
+        if (ic74138Count != 1)
+        {
+            result.Messages.Add($"Expected exactly 1 IC 74138, found {ic74138Count}");
+            result.IsSetupValid = false;
+        }
+
+        if (ledCount < 8)
+        {
+            result.Messages.Add($"Expected at least 8 LEDs, found {ledCount}");
+            result.IsSetupValid = false;
+        }
+
+        if (dipSwitchCount < 3)
+        {
+            result.Messages.Add($"Expected at least 3 DIP switches, found {dipSwitchCount}");
+            result.IsSetupValid = false;
+        }
+
+        // Only proceed with detailed checks if basic components are present
+        if (ic74138State != null && ledCount > 7 && dipSwitchCount > 2)
+        {
+
+            // Check IC 74138 enable pins (e1, e2, e3)
+            bool e1Active = false;
+            bool e2Active = false;
+            bool e3Active = false;
+
+            try
+            {
+                e1Active = ic74138State.enable.E1;
+                e2Active = ic74138State.enable.E2;
+                e3Active = ic74138State.enable.E3;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot access IC 74138 enable pins");
+                result.IsSetupValid = false;
+            }
+
+            // Add individual messages for each enable pin
+            if (!e1Active)
+            {
+                result.Messages.Add("IC 74138 E1 pin must be set to LOW");
+                result.IsSetupValid = false;
+            }
+
+            if (!e2Active)
+            {
+                result.Messages.Add("IC 74138 E2 pin must be set to LOW");
+                result.IsSetupValid = false;
+            }
+
+            if (!e3Active)
+            {
+                result.Messages.Add("IC 74138 E3 pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            // Check if all LEDs are grounded
+            bool ledsGrounded = true;
+            foreach (dynamic ledState in ledStates)
+            {
+                if (!ledState.grounded)
+                {
+                    ledsGrounded = false;
+                    break;
+                }
+            }
+
+
+            if (!ledsGrounded)
+            {
+                result.Messages.Add("LEDS are not properly grounded");
+                result.IsSetupValid = false;
+            }
+
+            // Check if IC has uninitialized inputs
+            string status = "";
+            try
+            {
+                status = ic74138State.status;
+
+                if (status == "Uninitialized inputs")
+                {
+                    result.Messages.Add("IC 74138 has uninitialized inputs. Check DIP switch connections.");
+                    result.IsSetupValid = false;
+                }
+            }
+            catch (Exception)
+            {
+                Debug.Log("No status");
+            }
+
+            // Extract ic
+            JToken icComp = null;
+            List<JToken> ledComps = new List<JToken>();
+            List<JToken> ledsConnectedToIc = new List<JToken>();
+
+            foreach (JProperty componentProp in components)
+            {
+                if (componentProp.Name.Equals(mainIc))
+                {
+                    icComp = componentProp.Value;
+                }
+                else if (componentProp.Name.StartsWith("led"))
+                {
+                    ledComps.Add(componentProp.Value);
+                }
+            }
+
+            // Check if required components are found
+            if (icComp == null)
+            {
+                result.Messages.Add("Missing IC");
+                result.IsSetupValid = false;
+            }
+
+            string[] outputPins = new string[] {
+                "pin15", "pin14", "pin13", "pin12",
+                "pin11", "pin10", "pin9", "pin7"
+            };
+
+            // Check all required connections
+            bool allConnected = true;
+
+            foreach (string pin in outputPins)
+            {
+                foreach (JToken ledComp in ledComps)
+                {
+                    string pinValue = icComp[pin]?.ToString();
+                    string anodeValue = ledComp["anode"]?.ToString();
+
+                    bool isConnected = AreNodesConnected(pinValue, anodeValue, simResult.Nets);
+                    if (isConnected)
+                    {
+                        ledsConnectedToIc.Add(ledComp["ledId"]?.ToString());
+                    }
+                }
+            }
+
+            if (ledsConnectedToIc.Count != 8) allConnected = false;
+
+            if (!allConnected)
+            {
+                result.Messages.Add("IC74138 outputs are not properly connected to LEDs.");
+                result.IsSetupValid = false;
+            }
+        }
+
+        // Only evaluate the experiment if the setup is valid
+        if (result.IsSetupValid)
+        {
+            // Get expected A0 A1 A2 input for current instruction (000 to 111)
+            bool[] expectedBits = new bool[3];
+            for (int i = 0; i < 3; i++)
+            {
+                expectedBits[i] = ((CurrentInstructionIndex >> i) & 1) == 1;
+            }
+
+            // Get actual IC inputs
+            bool inputA0 = false, inputA1 = false, inputA2 = false;
+            try
+            {
+                inputA0 = ic74138State.address.A0;
+                inputA1 = ic74138State.address.A1;
+                inputA2 = ic74138State.address.A2;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot evaluate: IC inputs not found in simulation result");
+                result.InstructionResults[CurrentInstructionIndex] = false;
+                return result;
+            }
+
+            // Compare expected and actual inputs
+            bool[] actualBits = new[] { inputA0, inputA1, inputA2 };
+            bool allMatch = true;
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (actualBits[i] != expectedBits[i])
+                {
+                    allMatch = false;
+                    break;
+                }
+            }
+
+            result.InstructionResults[CurrentInstructionIndex] = allMatch;
+
+            if (allMatch)
+            {
+                // Mark instruction as completed
+                _completedInstructions[experiment.Id].Add(CurrentInstructionIndex);
+                result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
+
+                NextInstruction();
+            }
+        }
+
+        return result;
+    }
 }
 
 
