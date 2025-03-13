@@ -182,11 +182,14 @@ public class BreadboardSimulator : MonoBehaviour
 
         //Add main instruction
         GameObject taskMsg = Instantiate(taskText);
+
+        bool isCompleted = ((float)_completedInstructions[CurrentExperimentId].Count / _experiments[CurrentExperimentId].TotalInstructions) == 1f;
+
         taskMsg.transform.SetParent(bc.labMessagesTransform);
-        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = _experiments[CurrentExperimentId].InstructionDescriptions[CurrentInstructionIndex];
         taskMsg.transform.localScale = Vector3.one;
         taskMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         taskMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
+        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {CurrentExperimentId} Completed!" : _experiments[CurrentExperimentId].InstructionDescriptions[CurrentInstructionIndex];
 
         //Append messages
         foreach (string msg in result.ExperimentResult.Messages)
@@ -1048,16 +1051,16 @@ public class BreadboardSimulator : MonoBehaviour
         // If EI is inactive (HIGH) or no input is active
         if (!ei || highestActive == -1)
         {
-            a0 = a1 = a2 = true;   // All outputs HIGH (inactive)
-            gs = true;             // GS HIGH (inactive)
-            e0 = false;            // E0 LOW (active)
+            a0 = a1 = a2 = false;
+            gs = true;
+            e0 = false;
         }
         else
         {
             // Encode priority input to binary (complement of bits)
-            a0 = (highestActive & 1) == 0;  // Bit 0
-            a1 = (highestActive & 2) == 0;  // Bit 1
-            a2 = (highestActive & 4) == 0;  // Bit 2
+            a0 = (highestActive & 1) != 0;  // Bit 0
+            a1 = (highestActive & 2) != 0;  // Bit 1
+            a2 = (highestActive & 4) != 0;  // Bit 2
             gs = false;                     // GS LOW (active)
             e0 = true;                      // E0 HIGH (inactive)
         }
@@ -1200,6 +1203,28 @@ public class BreadboardSimulator : MonoBehaviour
 
         _experiments[bcdExperiment.Id] = bcdExperiment;
         _completedInstructions[bcdExperiment.Id] = new HashSet<int>();
+
+        // Encoder Experiment (Experiment 3)
+        var encoderExperiment = new ExperimentDefinition
+        {
+            Id = 3,
+            Name = "IC 74148 Encoder",
+            Description = "Lmao",
+            TotalInstructions = 8
+        };
+
+        // Add instructions for each input test
+        encoderExperiment.InstructionDescriptions[0] = "Turn on all inputs (A0-A7)";
+        encoderExperiment.InstructionDescriptions[1] = "Turn off only input A1, keep others on";
+        encoderExperiment.InstructionDescriptions[2] = "Turn off only input A2, keep others on";
+        encoderExperiment.InstructionDescriptions[3] = "Turn off only input A3, keep others on";
+        encoderExperiment.InstructionDescriptions[4] = "Turn off only input A4, keep others on";
+        encoderExperiment.InstructionDescriptions[5] = "Turn off only input A5, keep others on";
+        encoderExperiment.InstructionDescriptions[6] = "Turn off only input A6, keep others on";
+        encoderExperiment.InstructionDescriptions[7] = "Turn off only input A7, keep others on";
+
+        _experiments[encoderExperiment.Id] = encoderExperiment;
+        _completedInstructions[encoderExperiment.Id] = new HashSet<int>();
     }
 
     public ExperimentDefinition GetCurrentExperiment()
@@ -1295,6 +1320,8 @@ public class BreadboardSimulator : MonoBehaviour
                 return Evaluate74138To8LED(simResult, experiment, components);
             case 2:
                 return EvaluateBCDTo7SegmentExperiment(simResult, experiment, components);
+            case 3:
+                return Evaluate74148To3LED(simResult, experiment, components);
             default:
                 return new ExperimentResult
                 {
@@ -1304,6 +1331,291 @@ public class BreadboardSimulator : MonoBehaviour
                     IsSetupValid = false
                 };
         }
+    }
+
+    private ExperimentResult Evaluate74148To3LED(
+    SimulationResult simResult,
+    ExperimentDefinition experiment,
+    JToken components)
+    {
+        var result = new ExperimentResult
+        {
+            ExperimentName = experiment.Name,
+            ExperimentId = experiment.Id,
+            TotalInstructions = experiment.TotalInstructions,
+            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
+            InstructionResults = new Dictionary<int, bool>(),
+            Messages = new List<string>(),
+            IsSetupValid = true
+        };
+
+        // Count components and validate types
+        int ic74148Count = 0;
+        int ledCount = 0;
+        int dipSwitchCount = 0;
+
+        string mainIc = "";
+        List<string> mainLeds = new List<string>();
+
+        // Get component data
+        dynamic ic74148State = null;
+        List<dynamic> ledStates = new List<dynamic>();
+
+        foreach (var comp in simResult.ComponentStates)
+        {
+            if (comp.Key.StartsWith("ic"))
+            {
+                dynamic dynamicValue = comp.Value;
+                string typeValue = dynamicValue.type;
+
+                if (typeValue == "IC74148")
+                {
+                    ic74148Count++;
+                    ic74148State = dynamicValue;
+                    mainIc = comp.Key;
+                }
+            }
+            else if (comp.Key.StartsWith("led"))
+            {
+                dynamic dynamicValue = comp.Value;
+                ledCount++;
+                mainLeds.Add(comp.Key);
+                ledStates.Add(comp.Value);
+            }
+            else if (comp.Key.StartsWith("dipSwitch"))
+            {
+                dipSwitchCount++;
+            }
+        }
+
+        // Validate component counts
+        if (ic74148Count != 1)
+        {
+            result.Messages.Add($"Expected exactly 1 IC 74148, found {ic74148Count}");
+            result.IsSetupValid = false;
+        }
+
+        if (ledCount < 3)
+        {
+            result.Messages.Add($"Expected at least 3 LEDs, found {ledCount}");
+            result.IsSetupValid = false;
+        }
+
+        if (dipSwitchCount < 8)
+        {
+            result.Messages.Add($"Expected at least 8 DIP switches, found {dipSwitchCount}");
+            result.IsSetupValid = false;
+        }
+
+        // Only proceed with detailed checks if basic components are present
+        if (ic74148State != null && ledCount > 2 && dipSwitchCount > 7)
+        {
+
+            // Check IC 74148 control pins (ei, gs, e0)
+            bool eiActive = false;
+            bool gsActive = false;
+            bool e0Active = false;
+
+            try
+            {
+                eiActive = ic74148State.enableIn;
+                gsActive = ic74148State.outputs.GS;
+                e0Active = ic74148State.outputs.E0;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot access IC 74148 enable pins");
+                result.IsSetupValid = false;
+            }
+
+            // Add individual messages for each enable pin
+            if (!eiActive)
+            {
+                result.Messages.Add("IC 74148 EI pin must be set to LOW");
+                result.IsSetupValid = false;
+            }
+
+            // Removed since optional
+            // if (!gsActive)
+            // {
+            //     result.Messages.Add("IC 74148 GS pin must be set to LOW");
+            //     result.IsSetupValid = false;
+            // }
+
+            // if (!e0Active)
+            // {
+            //     result.Messages.Add("IC 74148 E0 pin must be set to LOW");
+            //     result.IsSetupValid = false;
+            // }
+
+            // Check if all LEDs are grounded
+            bool ledsGrounded = true;
+            foreach (dynamic ledState in ledStates)
+            {
+                if (!ledState.grounded)
+                {
+                    ledsGrounded = false;
+                    break;
+                }
+            }
+
+
+            if (!ledsGrounded)
+            {
+                result.Messages.Add("LEDS are not properly grounded");
+                result.IsSetupValid = false;
+            }
+
+            // Check if IC has uninitialized inputs
+            string status = "";
+            try
+            {
+                status = ic74148State.status;
+
+                if (status == "Uninitialized inputs")
+                {
+                    result.Messages.Add("IC 74148 has uninitialized inputs. Check DIP switch connections.");
+                    result.IsSetupValid = false;
+                }
+            }
+            catch (Exception)
+            {
+                Debug.Log("No status");
+            }
+
+            // Extract ic
+            JToken icComp = null;
+            List<JToken> ledComps = new List<JToken>();
+            List<JToken> ledsConnectedToIc = new List<JToken>();
+
+            foreach (JProperty componentProp in components)
+            {
+                if (componentProp.Name.Equals(mainIc))
+                {
+                    icComp = componentProp.Value;
+                }
+                else if (componentProp.Name.StartsWith("led"))
+                {
+                    ledComps.Add(componentProp.Value);
+                }
+            }
+
+            // Check if required components are found
+            if (icComp == null)
+            {
+                result.Messages.Add("Missing IC");
+                result.IsSetupValid = false;
+            }
+
+            string[] outputPins = new string[] {
+                "pin6", "pin7", "pin9"
+            };
+
+            // Check all required connections
+            bool allConnected = true;
+
+            foreach (string pin in outputPins)
+            {
+                foreach (JToken ledComp in ledComps)
+                {
+                    string pinValue = icComp[pin]?.ToString();
+                    string anodeValue = ledComp["anode"]?.ToString();
+
+                    bool isConnected = AreNodesConnected(pinValue, anodeValue, simResult.Nets);
+                    if (isConnected)
+                    {
+                        ledsConnectedToIc.Add(ledComp["ledId"]?.ToString());
+                    }
+                }
+            }
+
+            if (ledsConnectedToIc.Count != 3) allConnected = false;
+
+            if (!allConnected)
+            {
+                result.Messages.Add("IC74148 outputs are not properly connected to LEDs.");
+                result.IsSetupValid = false;
+            }
+        }
+
+        // Only evaluate the experiment if the setup is valid
+        if (result.IsSetupValid)
+        {
+            bool[] inputsState = ic74148State.inputsState;
+            int iState = 1;
+
+            foreach (bool state in inputsState)
+            {
+                Debug.Log($"{iState}: {state}");
+                iState++;
+            }
+
+            int expectedValue = -1;
+
+            for (int i = 7; i >= 0; i--)
+            {
+                if (inputsState[i])  // Active LOW, so input means active
+                {
+                    expectedValue = i;
+                    break;
+                }
+            }
+            bool[] expectedBits = new bool[3];
+            for (int i = 0; i < 3; i++)
+            {
+                expectedBits[i] = ((expectedValue >> i) & 1) == 1; // converts the highest priority into its 3-bit binary rep.
+            }
+
+
+            // Get actual IC inputs
+            int highestPriority = -1;
+            try
+            {
+                highestPriority = ic74148State.highestPriority;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot evaluate: IC inputs not found in simulation result");
+                result.InstructionResults[CurrentInstructionIndex] = false;
+                return result;
+            }
+
+            // // Compare expected and actual inputs
+            // bool[] actualBits = new bool[3];
+            bool allMatch = false;
+
+            // for (int i = 0; i < 3; i++)
+            // {
+            //     actualBits[i] = ((highestPriority >> i) & 1) == 1; // converts the highest priority into its 3-bit binary rep.
+            // }
+
+            // for (int i = 0; i < 3; i++)
+            // {
+            //     if (actualBits[i] != expectedBits[i])
+            //     {
+            //         allMatch = false;
+            //         break;
+            //     }
+            // }
+
+            Debug.Log($"highestPriority: {highestPriority}, CurrentInstructionIndex: {CurrentInstructionIndex}");
+            if (CurrentInstructionIndex == 0 && highestPriority == -1) allMatch = true;
+            if (CurrentInstructionIndex == highestPriority && CurrentExperimentId != 0) allMatch = true;
+
+            result.InstructionResults[CurrentInstructionIndex] = allMatch;
+
+            if (allMatch)
+            {
+                Debug.Log("PASSED!!!");
+                // Mark instruction as completed
+                _completedInstructions[experiment.Id].Add(CurrentInstructionIndex);
+                result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
+
+                NextInstruction();
+            }
+        }
+
+        return result;
     }
 
     private ExperimentResult EvaluateBCDTo7SegmentExperiment(
