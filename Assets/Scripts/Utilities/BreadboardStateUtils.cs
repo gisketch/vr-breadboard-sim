@@ -104,7 +104,7 @@ public class BreadboardStateUtils : MonoBehaviour
     }
 
     // IC: pin1, type
-    public void AddIC(string pin1, string type)
+    public void AddIC(string pin9, string type)
     {
         try
         {
@@ -115,22 +115,22 @@ public class BreadboardStateUtils : MonoBehaviour
             {
                 type = "ic",
                 icType = type,
-                pin1 = pin1,
-                pin2 = GetNodeNameOffset(pin1, 1, 0),
-                pin3 = GetNodeNameOffset(pin1, 2, 0),
-                pin4 = GetNodeNameOffset(pin1, 3, 0),
-                pin5 = GetNodeNameOffset(pin1, 4, 0),
-                pin6 = GetNodeNameOffset(pin1, 5, 0),
-                pin7 = GetNodeNameOffset(pin1, 6, 0),
-                pin8 = GetNodeNameOffset(pin1, 7, 0),
-                pin9 = GetNodeNameOffset(pin1, 7, 1),
-                pin10 = GetNodeNameOffset(pin1, 6, 1),
-                pin11 = GetNodeNameOffset(pin1, 5, 1),
-                pin12 = GetNodeNameOffset(pin1, 4, 1),
-                pin13 = GetNodeNameOffset(pin1, 3, 1),
-                pin14 = GetNodeNameOffset(pin1, 2, 1),
-                pin15 = GetNodeNameOffset(pin1, 1, 1),
-                pin16 = GetNodeNameOffset(pin1, 0, 1)
+                pin9 = pin9,
+                pin10 = GetNodeNameOffset(pin9, 1, 0),
+                pin11 = GetNodeNameOffset(pin9, 2, 0),
+                pin12 = GetNodeNameOffset(pin9, 3, 0),
+                pin13 = GetNodeNameOffset(pin9, 4, 0),
+                pin14 = GetNodeNameOffset(pin9, 5, 0),
+                pin15 = GetNodeNameOffset(pin9, 6, 0),
+                pin16 = GetNodeNameOffset(pin9, 7, 0),
+                pin1 = GetNodeNameOffset(pin9, 7, 1),
+                pin2 = GetNodeNameOffset(pin9, 6, 1),
+                pin3 = GetNodeNameOffset(pin9, 5, 1),
+                pin4 = GetNodeNameOffset(pin9, 4, 1),
+                pin5 = GetNodeNameOffset(pin9, 3, 1),
+                pin6 = GetNodeNameOffset(pin9, 2, 1),
+                pin7 = GetNodeNameOffset(pin9, 1, 1),
+                pin8 = GetNodeNameOffset(pin9, 0, 1)
             };
 
             myBreadboardController.CmdAddComponent(icId, ic);
@@ -615,7 +615,7 @@ public class BreadboardStateUtils : MonoBehaviour
 
     private void CreateICComponent(BreadboardComponentData ic, Transform parent, string name)
     {
-        if (string.IsNullOrEmpty(ic.pin1) || string.IsNullOrEmpty(ic.icType))
+        if (string.IsNullOrEmpty(ic.pin9) || string.IsNullOrEmpty(ic.icType))
         {
             Debug.LogWarning("Invalid IC configuration");
             return;
@@ -627,7 +627,7 @@ public class BreadboardStateUtils : MonoBehaviour
 
         if (icScript != null)
         {
-            icScript.Initialize(ic.pin1, ic.icType, parent.parent);
+            icScript.Initialize(ic.pin9, ic.icType, parent.parent);
         }
         else
         {

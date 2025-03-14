@@ -28,7 +28,7 @@ public class IC : MonoBehaviour
 
     }
 
-    public void Initialize(string pin1ref, string type, Transform reference)
+    public void Initialize(string pin9ref, string type, Transform reference)
     {
         if (type == "IC7448") icType = ICType.IC7448;
         if (type == "IC74138") icType = ICType.IC74138;
@@ -36,28 +36,29 @@ public class IC : MonoBehaviour
 
         UpdateMaterialType();
 
-        pin1 = FindNodeRecursively(reference, pin1ref);
-        pin2 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 1, 0, 1, 30, 'A', 'J'));
-        pin3 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 2, 0, 1, 30, 'A', 'J'));
-        pin4 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 3, 0, 1, 30, 'A', 'J'));
-        pin5 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 4, 0, 1, 30, 'A', 'J'));
-        pin6 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 5, 0, 1, 30, 'A', 'J'));
-        pin7 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 6, 0, 1, 30, 'A', 'J'));
-        pin8 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 7, 0, 1, 30, 'A', 'J'));
+        pin9 = FindNodeRecursively(reference, pin9ref);
+        Debug.Log($"pin9 is ${pin9.name}");
+        pin10 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 1, 0, 1, 30, 'A', 'J'));
+        pin11 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 2, 0, 1, 30, 'A', 'J'));
+        pin12 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 3, 0, 1, 30, 'A', 'J'));
+        pin13 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 4, 0, 1, 30, 'A', 'J'));
+        pin14 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 5, 0, 1, 30, 'A', 'J'));
+        pin15 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 6, 0, 1, 30, 'A', 'J'));
+        pin16 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 7, 0, 1, 30, 'A', 'J'));
 
-        pin9 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 7, 1, 1, 30, 'A', 'J'));
-        pin10 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 6, 1, 1, 30, 'A', 'J'));
-        pin11 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 5, 1, 1, 30, 'A', 'J'));
-        pin12 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 4, 1, 1, 30, 'A', 'J'));
-        pin13 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 3, 1, 1, 30, 'A', 'J'));
-        pin14 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 2, 1, 1, 30, 'A', 'J'));
-        pin15 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 1, 1, 1, 30, 'A', 'J'));
-        pin16 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin1ref, 0, 1, 1, 30, 'A', 'J'));
+        pin1 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 7, 1, 1, 30, 'A', 'J'));
+        pin2 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 6, 1, 1, 30, 'A', 'J'));
+        pin3 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 5, 1, 1, 30, 'A', 'J'));
+        pin4 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 4, 1, 1, 30, 'A', 'J'));
+        pin5 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 3, 1, 1, 30, 'A', 'J'));
+        pin6 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 2, 1, 1, 30, 'A', 'J'));
+        pin7 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 1, 1, 1, 30, 'A', 'J'));
+        pin8 = FindNodeRecursively(reference, BreadboardStateUtils.GetStringNameOffset(pin9ref, 0, 1, 1, 30, 'A', 'J'));
 
         //Set transform
-        Vector3 pin1LocalPos = reference.InverseTransformPoint(pin1.transform.position);
+        Vector3 pin9LocalPos = reference.InverseTransformPoint(pin9.transform.position);
 
-        transform.localPosition = pin1LocalPos;
+        transform.localPosition = pin9LocalPos;
     }
 
     private void UpdateMaterialType()

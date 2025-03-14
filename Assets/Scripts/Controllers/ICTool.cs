@@ -6,13 +6,13 @@ using System.Text.RegularExpressions;
 public class ICTool : MonoBehaviour, IComponentTool
 {
     //PIN 1 TOP LEFT PLACEMENT
-    [SerializeField] private Node pin1;
+    [SerializeField] private Node pin9;
 
     private bool isAllowed = false;
 
-
     public void Activate()
     {
+        GameManager.Instance.SetInteractionMessage("Select a node for pin 9");
     }
 
     public void UpdateColors()
@@ -105,27 +105,28 @@ public class ICTool : MonoBehaviour, IComponentTool
         if (node != null && !node.isOccupied)
         {
             //Calculates the other nodes based of of pin 1
-            Node node2 = GetNodeOffset(node, 1, 0);
-            Node node3 = GetNodeOffset(node, 2, 0);
-            Node node4 = GetNodeOffset(node, 3, 0);
-            Node node5 = GetNodeOffset(node, 4, 0);
-            Node node6 = GetNodeOffset(node, 5, 0);
-            Node node7 = GetNodeOffset(node, 6, 0);
-            Node node8 = GetNodeOffset(node, 7, 0);
+            Node node10 = GetNodeOffset(node, 1, 0);
+            Node node11 = GetNodeOffset(node, 2, 0);
+            Node node12 = GetNodeOffset(node, 3, 0);
+            Node node13 = GetNodeOffset(node, 4, 0);
+            Node node14 = GetNodeOffset(node, 5, 0);
+            Node node15 = GetNodeOffset(node, 6, 0);
+            Node node16 = GetNodeOffset(node, 7, 0);
 
-            Node node16 = GetNodeOffset(node, 0, 1);
-            Node node15 = GetNodeOffset(node, 1, 1);
-            Node node14 = GetNodeOffset(node, 2, 1);
-            Node node13 = GetNodeOffset(node, 3, 1);
-            Node node12 = GetNodeOffset(node, 4, 1);
-            Node node11 = GetNodeOffset(node, 5, 1);
-            Node node10 = GetNodeOffset(node, 6, 1);
-            Node node9 = GetNodeOffset(node, 7, 1);
+            Node node8 = GetNodeOffset(node, 0, 1);
+            Node node7 = GetNodeOffset(node, 1, 1);
+            Node node6 = GetNodeOffset(node, 2, 1);
+            Node node5 = GetNodeOffset(node, 3, 1);
+            Node node4 = GetNodeOffset(node, 4, 1);
+            Node node3 = GetNodeOffset(node, 5, 1);
+            Node node2 = GetNodeOffset(node, 6, 1);
+            Node node1 = GetNodeOffset(node, 7, 1);
 
 
 
             // Check if all required nodes are available.  Use the helper function.
             isAllowed = CheckNodeAvailability(node) &&
+                        CheckNodeAvailability(node1) &&
                         CheckNodeAvailability(node2) &&
                         CheckNodeAvailability(node3) &&
                         CheckNodeAvailability(node4) &&
@@ -133,7 +134,6 @@ public class ICTool : MonoBehaviour, IComponentTool
                         CheckNodeAvailability(node6) &&
                         CheckNodeAvailability(node7) &&
                         CheckNodeAvailability(node8) &&
-                        CheckNodeAvailability(node9) &&
                         CheckNodeAvailability(node10) &&
                         CheckNodeAvailability(node11) &&
                         CheckNodeAvailability(node12) &&
@@ -145,7 +145,7 @@ public class ICTool : MonoBehaviour, IComponentTool
             //SET HIGHLIGHT FOR ALL NODES DEPENDING ON AVAILABILITY
             SetNodeHighlightAndTrack(node, Node.HighlightColor.Green);
 
-            Node[] nodesToCheck = { node2, node3, node4, node5, node6, node7, node8, node9, node10, node11, node12, node13, node14, node15, node16 };
+            Node[] nodesToCheck = { node2, node3, node4, node5, node6, node7, node8, node1, node10, node11, node12, node13, node14, node15, node16 };
 
             foreach (Node nodeToCheck in nodesToCheck)
             {
@@ -195,6 +195,7 @@ public class ICTool : MonoBehaviour, IComponentTool
         if (isAllowed && node != null)
         {
             //STATE!!
+            GameManager.Instance.ClearInteractionMessage();
             BreadboardStateUtils.Instance.AddIC(node.name, ComponentManager.Instance.currentICType.ToString());
             isAllowed = false;
         }
