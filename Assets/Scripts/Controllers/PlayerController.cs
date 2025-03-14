@@ -44,7 +44,7 @@ namespace Mirror
         public string playerName = "Player";
         [SerializeField] private TMP_Text playerText;
 
-        private int id = -1;
+        public int id = -1;
 
         private void Awake()
         {

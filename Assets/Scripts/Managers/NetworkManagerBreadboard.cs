@@ -60,8 +60,7 @@ namespace Mirror
             NetworkServer.AddPlayerForConnection(conn, player);
 
             // If student, also spawn a breadboard
-            // TODO: remove instructor
-            if (role == GameManager.UserRole.Student || role == GameManager.UserRole.Instructor)
+            if (role == GameManager.UserRole.Student)
             {
                 int spawnIndex = FindAvailableBreadboardSpot();
                 breadboardSpotOccupied[spawnIndex] = true;
@@ -81,7 +80,21 @@ namespace Mirror
 
         public override void OnServerDisconnect(NetworkConnection conn)
         {
-            // Clean up the player's breadboard
+            // Clean up student scores when they disconnect
+            if (conn.identity != null)
+            {
+                PlayerController player = conn.identity.GetComponent<PlayerController>();
+                if (player != null && player.id > 0)
+                {
+                    ClassroomManager scoreManager = GameObject.Find("chalkboard").GetComponent<ClassroomManager>();
+                    if (scoreManager != null)
+                    {
+                        scoreManager.CmdRemoveStudent(player.id);
+                    }
+                }
+            }
+
+            // Keep your existing breadboard cleanup code
             if (conn.identity != null && playerBreadboards.TryGetValue(conn.identity.netId, out GameObject breadboard))
             {
                 // Find the index of this breadboard to mark the spot as available

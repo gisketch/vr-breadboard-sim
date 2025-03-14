@@ -46,6 +46,8 @@ namespace Mirror
 
         public Transform labMessagesTransform;
 
+        private int id = -1;
+
         void Awake()
         {
             // Find the breadboard child transform
@@ -92,10 +94,24 @@ namespace Mirror
             }
         }
 
+        void Start()
+        {
+            if (hasAuthority)
+            {
+                Debug.Log("I have authority, starting udpate!");
+                if (GameManager.Instance.CurrentRole == GameManager.UserRole.Student)
+                {
+                    ClassroomManager cm = GameObject.Find("chalkboard").GetComponent<ClassroomManager>();
+                    Debug.Log("Updating Breadboard Id!");
+                    CmdUpdateId(cm.currentBreadboardId);
+                    id = cm.currentBreadboardId;
+                    cm.CmdIncrementBreadboardId();
+                }
+            }
+        }
+
         void OnStudentIdChanged(int oldValue, int newValue)
         {
-            Debug.Log($"Student ID Changed from {oldValue} to {newValue}!");
-
             // Only update the score if we have a valid student ID
             if (newValue > 0)
             {
@@ -111,6 +127,16 @@ namespace Mirror
         public void CmdUpdateScore(string scoreStr)
         {
             score = scoreStr;
+
+            // // Also update the score in the classroom manager
+            if (studentId > 0)
+            {
+                ClassroomManager scoreManager = GameObject.Find("chalkboard").GetComponent<ClassroomManager>();
+                if (scoreManager != null)
+                {
+                    scoreManager.CmdUpdateStudentScore(studentId, scoreStr);
+                }
+            }
         }
 
         public override void OnStopClient()
@@ -120,29 +146,11 @@ namespace Mirror
         }
 
 
-        [Command]
-        public void CmdUpdateId(int id)
+        [Command(ignoreAuthority = false)]
+        public void CmdUpdateId(int toChange)
         {
-            if (hasAuthority)
-            {
-                studentId = id;
-            }
-        }
-
-        void Start()
-        {
-            PlayerController[] pcArray = GameObject.FindObjectsOfType<PlayerController>();
-            foreach (PlayerController pc in pcArray)
-            {
-                int newId;
-                newId = pc.ReturnId();
-                if (newId != -1)
-                {
-                    Debug.Log("ID is -1");
-                    return;
-                }
-                CmdUpdateId(newId);
-            }
+            studentId = toChange;
+            Debug.Log($"Updated ID to {studentId}");
         }
 
         void OnBreadboardComponentsChanged(SyncIDictionary<string, BreadboardComponentData>.Operation op, string key, BreadboardComponentData item)
