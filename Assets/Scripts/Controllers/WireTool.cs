@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 
 public class WireTool : MonoBehaviour, IComponentTool
 {
@@ -25,8 +27,15 @@ public class WireTool : MonoBehaviour, IComponentTool
     
     public void Activate()
     {
-        gameObject.SetActive(true);
         ClearNodes();
+        StartCoroutine(ShowMessageCoroutine());
+    }
+
+    private IEnumerator ShowMessageCoroutine()
+    {
+        GameManager.Instance.SetInteractionMessage("Select a starting node");
+        yield return new WaitForSeconds(5f);
+        if (!isPlacingWire) GameManager.Instance.ClearInteractionMessage();
     }
 
     public void UpdateColors()
@@ -50,7 +59,6 @@ public class WireTool : MonoBehaviour, IComponentTool
         isPlacingWire = false;
         previewLine.enabled = false;
         ClearNodes();
-        gameObject.SetActive(false);
     }
 
     void Update()
@@ -109,6 +117,7 @@ public class WireTool : MonoBehaviour, IComponentTool
             isPlacingWire = true;
             previewLine.SetPosition(0, startNode.transform.position);
             previewLine.SetPosition(1, startNode.transform.position);
+            GameManager.Instance.SetInteractionMessage("Select the wire's endpoint");
         } 
         else if (startNode != null && endNode == null)
         {
@@ -123,6 +132,7 @@ public class WireTool : MonoBehaviour, IComponentTool
             isPlacingWire = false;
             previewLine.enabled = false;
 
+            GameManager.Instance.ClearInteractionMessage();
             //Update state
             BreadboardStateUtils.Instance.AddWire(startNode.name, endNode.name, ComponentManager.Instance.currentColor.ToString());
 

@@ -12,7 +12,16 @@ public class DipSwitchTool : MonoBehaviour, IComponentTool
 
     public void Activate()
     {
+        StartCoroutine(ShowMessageCoroutine());
     }
+
+    private IEnumerator ShowMessageCoroutine()
+    {
+        GameManager.Instance.SetInteractionMessage("Dip Switch selected");
+        yield return new WaitForSeconds(5f);
+    }
+
+
 
     public void UpdateColors()
     {
@@ -158,6 +167,7 @@ public class DipSwitchTool : MonoBehaviour, IComponentTool
         if (isAllowed && node != null)
         {
             //STATE!!
+            GameManager.Instance.ClearInteractionMessage();
             BreadboardStateUtils.Instance.AddDipSwitch(node.name);
             isAllowed = false;
         }

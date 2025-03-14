@@ -20,6 +20,10 @@ namespace Mirror
         [Header("Visibility Settings")]
         public string localPlayerLayer = "LocalPlayer";
 
+        [Header("Breadboard")]
+        public GameObject breadboardPrefab;
+        private BreadboardController myBreadboard;
+
         public GameObject playerModel;
         public Transform neckTransform;
 
@@ -36,6 +40,12 @@ namespace Mirror
         private bool isAscending = false;
         private bool isDescending = false;
 
+        [SyncVar(hook = nameof(OnPlayerNameChange))]
+        public string playerName = "Player";
+        [SerializeField] private TMP_Text playerText;
+
+        private int id = -1;
+
         private void Awake()
         {
             localPlayerLayerIndex = LayerMask.NameToLayer(localPlayerLayer);
@@ -46,10 +56,46 @@ namespace Mirror
             }
         }
 
+
+        void OnPlayerNameChange(string oldName, string newName)
+        {
+            playerText.text = newName;
+            if (newName == "Instructor") transform.Find("Host").gameObject.SetActive(true);
+        }
+
+        public int ReturnId()
+        {
+            if (hasAuthority)
+            {
+                return id;
+            }
+            else
+            {
+                return -1;
+            }
+        }
+
+
         private void Start()
         {
             characterController = GetComponent<CharacterController>();
             mainCamera = transform.GetComponentInChildren<Camera>();
+
+            if (hasAuthority)
+            {
+                ClassroomManager cm = GameObject.Find("chalkboard").GetComponent<ClassroomManager>();
+
+                if (GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor)
+                {
+                    CmdUpdateName("Instructor");
+                }
+                else
+                {
+                    CmdUpdateName($"Student {cm.currentStudentId}");
+                    id = cm.currentStudentId;
+                    cm.CmdIncrementStudentId();
+                }
+            }
 
             if (mainCamera == null)
             {
@@ -90,21 +136,26 @@ namespace Mirror
             }
         }
 
+        [Command]
+        public void CmdUpdateName(string name)
+        {
+            playerName = name;
+            playerText.text = playerName;
+        }
+
         [Client]
         private void Update()
         {
             if (!hasAuthority) { return; }
 
+            if (Input.GetKeyDown(KeyCode.L))
+            {
+            }
+
             HandleMovement();
             HandleVerticalMovement();
             HandleRotation();
             HandleVerticalToggle();
-
-            // For debugging purposes
-            if (Input.GetKeyDown(KeyCode.L))
-            {
-                Debug.Log($"Fly Mode: {isFlyMode}, Ascending: {isAscending}, Descending: {isDescending}");
-            }
 
             if (!isFlyMode && BreadboardManager.Instance.IsSimulationMode)
             {
@@ -122,6 +173,18 @@ namespace Mirror
                 isAscending = false;
                 isDescending = false;
                 GameManager.Instance.ClearInteractionMessage();
+            }
+        }
+
+        void OnTriggerEnter(Collider other)
+        {
+            if (other.tag == "Teleport")
+            {
+                //Go back to spawn
+                Transform spawnToGoBack = GameObject.Find("InstructorPos").transform;
+                characterController.enabled = false;
+                transform.position = spawnToGoBack.position;
+                characterController.enabled = true;
             }
         }
 
@@ -173,8 +236,6 @@ namespace Mirror
                     GameManager.Instance.ClearInteractionMessage();
                 }
             }
-
-
         }
 
         private void HandleRotation()
@@ -262,5 +323,6 @@ namespace Mirror
                 }
             }
         }
+
     }
 }

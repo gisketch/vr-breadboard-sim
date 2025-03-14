@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -51,12 +52,13 @@ public class GameManager : MonoBehaviour
         }
 
         classroom.SetActive(false);
-        
+
         if (interactionMessage != null)
         {
             interactionMessageOriginalPos = interactionMessage.rectTransform.anchoredPosition;
             interactionMessage.alpha = 0f;
-        } else
+        }
+        else
         {
             interactionMessage = GameObject.Find("InteractionMessage").GetComponent<TMP_Text>();
         }
@@ -65,7 +67,7 @@ public class GameManager : MonoBehaviour
     public void StartInstructor()
     {
         if (isGameStarted) return;
-        
+
         currentRole = UserRole.Instructor;
         InitializeGame();
 
@@ -75,7 +77,7 @@ public class GameManager : MonoBehaviour
     public void StartStudent()
     {
         if (isGameStarted) return;
-        
+
         currentRole = UserRole.Student;
         InitializeGame();
 
@@ -93,7 +95,7 @@ public class GameManager : MonoBehaviour
             RenderSettings.skybox = gameSkybox;
             DynamicGI.UpdateEnvironment();
         }
-        
+
         if (classroom != null)
         {
             classroom.SetActive(true);
@@ -109,35 +111,37 @@ public class GameManager : MonoBehaviour
     public void SetInteractionMessage(string message)
     {
         if (interactionMessage == null) return;
-        
+
         // Cancel any existing message tweens
         CancelMessageTweens();
-        
+
         // Set the message text
         interactionMessage.text = message;
-        
+
         // Set starting position (below the original position)
         Vector2 startPos = interactionMessageOriginalPos - new Vector2(0, messageFloatDistance);
         interactionMessage.rectTransform.anchoredPosition = startPos;
         interactionMessage.alpha = 0f;
-        
+
         // Create animation for fade in
         currentFadeTweenId = LeanTween.value(gameObject, 0f, 1f, messageFadeInDuration)
             .setEase(messageFadeEase)
-            .setOnUpdate((float val) => {
+            .setOnUpdate((float val) =>
+            {
                 interactionMessage.alpha = val;
             }).id;
-        
+
         // Create animation for position
-        currentMoveTweenId = LeanTween.move(interactionMessage.rectTransform, 
+        currentMoveTweenId = LeanTween.move(interactionMessage.rectTransform,
                 interactionMessageOriginalPos, messageFadeInDuration)
             .setEase(messageFloatEase).id;
-        
+
         // Auto-hide after delay if enabled
         if (messageAutoHideDelay > 0)
         {
             messageAutoHideDelayId = LeanTween.delayedCall(
-                gameObject, messageAutoHideDelay, () => {
+                gameObject, messageAutoHideDelay, () =>
+                {
                     ClearInteractionMessage();
                     messageAutoHideDelayId = -1;
                 }).id;
@@ -147,21 +151,23 @@ public class GameManager : MonoBehaviour
     public void ClearInteractionMessage()
     {
         if (interactionMessage == null || string.IsNullOrEmpty(interactionMessage.text)) return;
-        
+
         // Cancel any active message tweens
         CancelMessageTweens();
-        
+
         // Fade out animation
         currentFadeTweenId = LeanTween.value(gameObject, interactionMessage.alpha, 0f, messageFadeOutDuration)
             .setEase(messageFadeEase)
-            .setOnUpdate((float val) => {
+            .setOnUpdate((float val) =>
+            {
                 interactionMessage.alpha = val;
             })
-            .setOnComplete(() => {
+            .setOnComplete(() =>
+            {
                 interactionMessage.text = "";
             }).id;
     }
-    
+
     private void CancelMessageTweens()
     {
         // Cancel active fade animation
@@ -170,19 +176,25 @@ public class GameManager : MonoBehaviour
             LeanTween.cancel(currentFadeTweenId);
             currentFadeTweenId = -1;
         }
-        
+
         // Cancel active move animation
         if (currentMoveTweenId != -1)
         {
             LeanTween.cancel(currentMoveTweenId);
             currentMoveTweenId = -1;
         }
-        
+
         // Cancel auto-hide delay
         if (messageAutoHideDelayId != -1)
         {
             LeanTween.cancel(messageAutoHideDelayId);
             messageAutoHideDelayId = -1;
         }
+    }
+
+    public void ResetScene()
+    {
+        Scene currentScene = SceneManager.GetActiveScene();
+        SceneManager.LoadScene(currentScene.name);
     }
 }

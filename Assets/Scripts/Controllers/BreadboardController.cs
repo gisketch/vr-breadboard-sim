@@ -21,6 +21,12 @@ namespace Mirror
         public bool isPortraitMode = true;
         private bool prevIsPortraitMode = true;
 
+        [SyncVar(hook = nameof(OnStudentIdChanged))]
+        public int studentId = 0;
+        [TextArea(10, 20)]
+        [SyncVar]
+        public string score = "";
+
         // Animation related fields
         private Transform breadboardTransform;
         [SerializeField] private Vector3 idleBreadboardPosition;
@@ -60,7 +66,6 @@ namespace Mirror
             // Store initial positions and rotations
             idleBreadboardPosition = transform.localPosition;
             idleBreadboardRotation = transform.rotation;
-            Debug.Log("Client start: " + idleBreadboardPosition);
             if (breadboardTransform != null)
             {
                 idleChildRotation = breadboardTransform.localRotation;
@@ -87,10 +92,57 @@ namespace Mirror
             }
         }
 
+        void OnStudentIdChanged(int oldValue, int newValue)
+        {
+            Debug.Log($"Student ID Changed from {oldValue} to {newValue}!");
+
+            // Only update the score if we have a valid student ID
+            if (newValue > 0)
+            {
+                CmdUpdateScore($@"Student {newValue}
+ - experiment 1 : 0/8
+ - experiment 2 : 0/16
+ - experiment 3 : 0/8
+        ");
+            }
+        }
+
+        [Command]
+        public void CmdUpdateScore(string scoreStr)
+        {
+            score = scoreStr;
+        }
+
         public override void OnStopClient()
         {
             // Remove handler when client stops
             breadboardComponents.Callback -= OnBreadboardComponentsChanged;
+        }
+
+
+        [Command]
+        public void CmdUpdateId(int id)
+        {
+            if (hasAuthority)
+            {
+                studentId = id;
+            }
+        }
+
+        void Start()
+        {
+            PlayerController[] pcArray = GameObject.FindObjectsOfType<PlayerController>();
+            foreach (PlayerController pc in pcArray)
+            {
+                int newId;
+                newId = pc.ReturnId();
+                if (newId != -1)
+                {
+                    Debug.Log("ID is -1");
+                    return;
+                }
+                CmdUpdateId(newId);
+            }
         }
 
         void OnBreadboardComponentsChanged(SyncIDictionary<string, BreadboardComponentData>.Operation op, string key, BreadboardComponentData item)
@@ -292,10 +344,6 @@ namespace Mirror
 
         void HoverOther()
         {
-            if (!isInSimMode)
-            {
-                GameManager.Instance.SetInteractionMessage("Spectate Breadboard");
-            }
         }
 
         void ClickOwner()

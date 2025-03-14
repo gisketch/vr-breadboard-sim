@@ -14,7 +14,14 @@ public class LEDTool : MonoBehaviour, IComponentTool
 
     public void Activate()
     {
+        StartCoroutine(ShowMessageCoroutine());
+    }
 
+    private IEnumerator ShowMessageCoroutine()
+    {
+        GameManager.Instance.SetInteractionMessage("Select a node for the LED's anode");
+        yield return new WaitForSeconds(5f);
+        if (!isPlacingCathode) GameManager.Instance.ClearInteractionMessage();
     }
 
     public void UpdateColors()
@@ -25,7 +32,7 @@ public class LEDTool : MonoBehaviour, IComponentTool
     {
         if(isPlacingCathode)
         {
-            if(InputManager.Instance.GetSecondaryButtonDown())
+            if (InputManager.Instance.GetSecondaryButtonDown())
             {
                 ClearLED();
             }
@@ -85,6 +92,8 @@ public class LEDTool : MonoBehaviour, IComponentTool
                 return; // Return if conditions are not met, don't set anodeSlot
             }
 
+            GameManager.Instance.SetInteractionMessage("Select a node for the LED's cathode");
+
             anodeSlot = node;
             isPlacingCathode = true;
 
@@ -98,6 +107,7 @@ public class LEDTool : MonoBehaviour, IComponentTool
             if (placableNodes.Contains(node))
             {
                 cathodeSlot = node;
+                GameManager.Instance.ClearInteractionMessage();
 
                 //ADD LED TO STATE UTILS
                 BreadboardStateUtils.Instance.AddLED(anodeSlot.name, cathodeSlot.name, ComponentManager.Instance.currentColor.ToString());

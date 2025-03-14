@@ -235,6 +235,13 @@ public class BreadboardSimulator : MonoBehaviour
         prevExperiment.onClick.RemoveAllListeners();
         nextExperiment.onClick.RemoveAllListeners();
 
+        Debug.Log($"Updating score from simulator");
+        bc.CmdUpdateScore($@"Student {bc.studentId}
+ - experiment 1 : {_completedInstructions[1].Count}/{_experiments[1].TotalInstructions}
+ - experiment 2 : {_completedInstructions[2].Count}/{_experiments[2].TotalInstructions}
+ - experiment 3 : {_completedInstructions[3].Count}/{_experiments[3].TotalInstructions}
+        ");
+
         //Add button events
         prevExperiment.onClick.AddListener(() =>
         {

@@ -9,6 +9,7 @@ TagManager:
   - Target
   - Projectile
   - PlayerHand
+  - Teleport
   layers:
   - Default
   - TransparentFX

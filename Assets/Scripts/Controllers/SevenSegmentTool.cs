@@ -13,6 +13,7 @@ public class SevenSegmentTool : MonoBehaviour, IComponentTool
 
     public void Activate()
     {
+        GameManager.Instance.SetInteractionMessage("Select a node for pin B");
     }
 
     public void UpdateColors()
@@ -152,6 +153,7 @@ public class SevenSegmentTool : MonoBehaviour, IComponentTool
         if (isAllowed && node != null)
         {
             //STATE!!
+            GameManager.Instance.ClearInteractionMessage();
             BreadboardStateUtils.Instance.AddSevenSegment(node.name);
             isAllowed = false;
         } else {
