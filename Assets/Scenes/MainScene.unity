@@ -1467,6 +1467,12 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 12
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!224 &1004639838 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 1708109165559681932, guid: 30149eeed34bd654ab3d241ed81d3277,
+    type: 3}
+  m_PrefabInstance: {fileID: 1259052580}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1120582901
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1753,6 +1759,17 @@ PrefabInstance:
       propertyPath: sceneId
       value: 2429057177
       objectReference: {fileID: 0}
+    - target: {fileID: 9008993906177315043, guid: 30149eeed34bd654ab3d241ed81d3277,
+        type: 3}
+      propertyPath: scoreDisplayPrefab
+      value: 
+      objectReference: {fileID: 2647847550885631357, guid: 8c7e9aa061046a547afb1baedfe1ad32,
+        type: 3}
+    - target: {fileID: 9008993906177315043, guid: 30149eeed34bd654ab3d241ed81d3277,
+        type: 3}
+      propertyPath: scoreDisplayParent
+      value: 
+      objectReference: {fileID: 1004639838}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 30149eeed34bd654ab3d241ed81d3277, type: 3}
 --- !u!1 &1295373006
