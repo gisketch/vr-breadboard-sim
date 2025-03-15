@@ -245,15 +245,15 @@ public class BreadboardSimulator : MonoBehaviour
         //Add button events
         prevExperiment.onClick.AddListener(() =>
         {
-            BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
             PreviousExperiment();
+            BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
         });
 
         //Add button events
         nextExperiment.onClick.AddListener(() =>
         {
-            BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
             NextExperiment();
+            BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
         });
 
         // Render experiment messages
