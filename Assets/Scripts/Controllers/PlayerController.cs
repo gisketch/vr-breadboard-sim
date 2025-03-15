@@ -324,5 +324,24 @@ namespace Mirror
             }
         }
 
+        void OnDestroy()
+        {
+            Debug.Log($"{playerName} quits the server.");
+
+            int ownId = int.Parse(playerName[playerName.Length - 1].ToString());
+
+            if (ownId > 0)
+            {
+                Debug.Log("Finding Classroom");
+                ClassroomManager scoreManager = GameObject.Find("chalkboard").GetComponent<ClassroomManager>();
+                if (scoreManager != null)
+                {
+                    Debug.Log("Removing Myself from the Classroom");
+                    scoreManager.CmdRemoveStudent(ownId);
+                }
+            }
+
+        }
+
     }
 }
