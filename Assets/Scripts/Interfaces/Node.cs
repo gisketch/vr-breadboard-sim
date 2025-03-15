@@ -31,7 +31,7 @@ public class Node : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler, I
     void Update()
     {
         if (!isHovering) return;
-        if (InputManager.Instance.GetPrimaryButton())
+        if (InputManager.Instance.GetPrimaryButtonDown())
         {
             ComponentManager.Instance.OnNodeClick(this);
         }
