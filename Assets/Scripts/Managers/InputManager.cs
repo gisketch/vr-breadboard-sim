@@ -40,12 +40,20 @@ public class InputManager : MonoBehaviour
 
     public bool GetPrimaryButton()
     {
+#if UNITY_EDITOR
+        return Input.GetKey(KeyCode.Mouse3) || Input.GetKey(KeyCode.Mouse4);
+#else
         return Input.GetKey(KeyCode.Mouse0) || Input.GetKey("joystick button 0");
+#endif
     }
 
     public bool GetPrimaryButtonDown()
     {
+#if UNITY_EDITOR
+        return Input.GetKeyDown(KeyCode.Mouse3) || Input.GetKeyDown(KeyCode.Mouse4);
+#else
         return Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown("joystick button 0");
+#endif
     }
 
     public bool GetSecondaryButton()
