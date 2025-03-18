@@ -27,8 +27,8 @@ public class GvrEditorEmulator : MonoBehaviour
 {
     // GvrEditorEmulator should only be compiled in the Editor or on desktop platforms.
     // We exclude Android and iOS so it doesn't override the camera pose on mobile VR devices.
-    // #if UNITY_EDITOR
-#if UNITY_STANDALONE && !UNITY_ANDROID && !UNITY_IOS
+#if UNITY_EDITOR
+// #if UNITY_STANDALONE && !UNITY_ANDROID && !UNITY_IOS
     private const string AXIS_MOUSE_X = "Mouse X";
     private const string AXIS_MOUSE_Y = "Mouse Y";
 
