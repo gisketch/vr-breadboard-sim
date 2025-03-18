@@ -755,17 +755,17 @@ public class BreadboardSimulator : MonoBehaviour
                 int segNetId = connectedNets[nodeKey];
 
                 // Find connected ground
-                int gndNetId;
                 if (connectedNets.ContainsKey("nodeGnd1"))
                 {
-                    gndNetId = connectedNets["nodeGnd1"];
+                    int gndNetId1 = connectedNets["nodeGnd1"];
+                    isGrounded = nets[gndNetId1].State == NodeState.LOW;
                 }
-                else
+                if (connectedNets.ContainsKey("nodeGnd2"))
                 {
-                    gndNetId = connectedNets["nodeGnd2"];
+                    int gndNetId2 = connectedNets["nodeGnd2"];
+                    isGrounded = isGrounded || nets[gndNetId2].State == NodeState.LOW;
                 }
 
-                isGrounded = nets[gndNetId].State == NodeState.LOW;
 
                 // Segment is on when it's HIGH and GND is LOW
                 isOn = nets[segNetId].State == NodeState.HIGH && isGrounded;
@@ -835,6 +835,11 @@ public class BreadboardSimulator : MonoBehaviour
             return (false, new { type = "IC7448", error = "Missing BCD input pins" });
         }
 
+        // Get lamp test, blanking and ripple blanking inputs
+        bool lt = !connectedNets.ContainsKey("pin3") || nets[connectedNets["pin3"]].State == NodeState.HIGH;
+        bool bi_rbo = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.HIGH;
+        bool rbi = !connectedNets.ContainsKey("pin5") || nets[connectedNets["pin5"]].State == NodeState.HIGH;
+
         // Get BCD input values
         bool inputA = nets[connectedNets["pin7"]].State == NodeState.HIGH;
         bool inputB = nets[connectedNets["pin1"]].State == NodeState.HIGH;
@@ -847,13 +852,13 @@ public class BreadboardSimulator : MonoBehaviour
             nets[connectedNets["pin2"]].State == NodeState.UNINITIALIZED ||
             nets[connectedNets["pin6"]].State == NodeState.UNINITIALIZED)
         {
-            return (false, new { type = "IC7448", status = "Uninitialized inputs" });
+            return (false, new
+            {
+                type = "IC7448",
+                status = "Uninitialized inputs",
+                control = new { LT = lt, BI_RBO = bi_rbo, RBI = rbi },
+            });
         }
-
-        // Get lamp test, blanking and ripple blanking inputs
-        bool lt = !connectedNets.ContainsKey("pin3") || nets[connectedNets["pin3"]].State == NodeState.HIGH;
-        bool bi_rbo = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.HIGH;
-        bool rbi = !connectedNets.ContainsKey("pin5") || nets[connectedNets["pin5"]].State == NodeState.HIGH;
 
         // Convert binary to decimal (0-15)
         int value = (inputD ? 8 : 0) + (inputC ? 4 : 0) + (inputB ? 2 : 0) + (inputA ? 1 : 0);
