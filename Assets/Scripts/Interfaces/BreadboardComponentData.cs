@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Mirror;
 
 [System.Serializable]
@@ -52,4 +52,10 @@ public struct BreadboardComponentData
 
     // Dip Switch fields
     public bool isOn;
+    
+    // Resistor fields (simplified - no resistance field since it's fixed at 220Ω)
+    public string resistorPin1;
+    public string resistorPin2;
+    
+    public int resistance; // 220 ohms fixed
 }

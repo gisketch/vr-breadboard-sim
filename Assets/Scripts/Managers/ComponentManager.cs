@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-public enum ComponentType { None, Wire, LED, SevenSegment, IC, DipSwitch }
+public enum ComponentType { None, Wire, LED, SevenSegment, IC, DipSwitch, Resistor }
 public enum ComponentColor { Red, Green, Blue }
 public enum ICType { IC7448, IC74138, IC74148 }
 
@@ -14,6 +14,7 @@ public class ComponentManager : MonoBehaviour
     [SerializeField] private SevenSegmentTool sevenSegmentTool;
     [SerializeField] private ICTool icTool;
     [SerializeField] private DipSwitchTool dipSwitchTool;
+    [SerializeField] private ResistorTool resistorTool;
     
     [SerializeField] private ComponentType currentComponentType = ComponentType.Wire;
     public ComponentColor currentColor = ComponentColor.Red;
@@ -64,6 +65,9 @@ public class ComponentManager : MonoBehaviour
                 break;
             case ComponentType.DipSwitch:
                 currentTool = dipSwitchTool;
+                break;
+            case ComponentType.Resistor:
+                currentTool = resistorTool;
                 break;
             case ComponentType.None:
                 currentTool = null;

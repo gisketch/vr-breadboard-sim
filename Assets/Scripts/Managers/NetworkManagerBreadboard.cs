@@ -60,7 +60,8 @@ namespace Mirror
             NetworkServer.AddPlayerForConnection(conn, player);
 
             // If student, also spawn a breadboard
-            if (role == GameManager.UserRole.Student)
+            // if (role == GameManager.UserRole.Student)
+            if (true)
             {
                 int spawnIndex = FindAvailableBreadboardSpot();
                 breadboardSpotOccupied[spawnIndex] = true;

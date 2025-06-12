@@ -10,6 +10,11 @@ public class ComponentUIHandlers : MonoBehaviour
         ComponentManager.Instance.SelectComponentType(ComponentType.DipSwitch);
     }
 
+    public void ResistorClick()
+    {
+        ComponentManager.Instance.SelectComponentType(ComponentType.Resistor);
+    }
+
     public void IC7488Click()
     {
         ComponentManager.Instance.SelectComponentType(ComponentType.IC);

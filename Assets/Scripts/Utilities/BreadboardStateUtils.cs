@@ -16,12 +16,14 @@ public class BreadboardStateUtils : MonoBehaviour
     private int sevenSegCounter = 0;
     private int icCounter = 0;
     private int dipSwitchCounter = 0;
+    private int resistorCounter = 0;
 
     [SerializeField] private GameObject wireComponent;
     [SerializeField] private GameObject ledComponent;
     [SerializeField] private GameObject sevenSegmentComponent;
     [SerializeField] private GameObject icComponent;
     [SerializeField] private GameObject dipSwitchComponent;
+    [SerializeField] private GameObject resistorComponent;
 
     private void Awake()
     {
@@ -436,6 +438,10 @@ public class BreadboardStateUtils : MonoBehaviour
                     componentObj["pin15"] = component.pin15;
                     componentObj["pin16"] = component.pin16;
                     break;
+                case "resistor":
+                    componentObj["pin1"] = component.resistorPin1;
+                    componentObj["pin2"] = component.resistorPin2;
+                    break;
                 case "dipSwitch":
                     componentObj["pin1"] = component.pin1;
                     componentObj["pin2"] = component.pin2;
@@ -799,6 +805,29 @@ public class BreadboardStateUtils : MonoBehaviour
         {
             Debug.LogError("Invalid string name format for offset calculation: " + startName);
             return null;
+        }
+    }
+
+    // Resistor: pin1, pin2 (220Ω fixed)
+    public void AddResistor(string pin1, string pin2)
+    {
+        try
+        {
+            resistorCounter++;
+            string resistorId = $"resistor{resistorCounter}";
+            
+            BreadboardComponentData resistor = new BreadboardComponentData
+            {
+                type = "resistor",
+                resistorPin1 = pin1,
+                resistorPin2 = pin2
+            };
+            
+            myBreadboardController.CmdAddComponent(resistorId, resistor);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Error adding resistor: {e.Message}");
         }
     }
 }
