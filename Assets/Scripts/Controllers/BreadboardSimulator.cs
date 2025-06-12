@@ -45,12 +45,23 @@ public class BreadboardSimulator : MonoBehaviour
         public NodeState State = NodeState.UNINITIALIZED;
         public PowerSource Source = PowerSource.NONE;
         public string SourceComponent;  // Which IC is driving this net, if any
+        public List<string> SourceComponents = new List<string>();
+        
+        // Add a method to add source components
+        public void AddSourceComponent(string component)
+        {
+            if (!SourceComponents.Contains(component))
+            {
+                SourceComponents.Add(component);
+            }
+        }
     }
 
     // Breadboard graph representation
     public class BreadboardGraph
     {
         private Dictionary<string, List<string>> _adjacencyList = new Dictionary<string, List<string>>();
+        private Dictionary<string, List<string>> _resistorConnections = new Dictionary<string, List<string>>();
 
         public void AddNode(string node)
         {
@@ -75,6 +86,30 @@ public class BreadboardSimulator : MonoBehaviour
             {
                 _adjacencyList[node2].Add(node1);
             }
+        }
+
+        public void MarkAsResistor(string node1, string node2, string resistorId)
+        {
+            if (!_resistorConnections.ContainsKey(node1))
+            {
+                _resistorConnections[node1] = new List<string>();
+            }
+            if (!_resistorConnections.ContainsKey(node2))
+            {
+                _resistorConnections[node2] = new List<string>();
+            }
+            
+            _resistorConnections[node1].Add(resistorId);
+            _resistorConnections[node2].Add(resistorId);
+        }
+        
+        public List<string> GetResistorsForNode(string node)
+        {
+            if (_resistorConnections.ContainsKey(node))
+            {
+                return _resistorConnections[node];
+            }
+            return new List<string>();
         }
 
         public List<string> GetNeighbors(string node)
@@ -157,7 +192,7 @@ public class BreadboardSimulator : MonoBehaviour
         // 2. Build electrical network
         var graph = BuildGraph(components);
         var nets = IdentifyNets(graph);
-        DetermineInitialStates(nets);
+        DetermineInitialStates(nets, graph, components);
 
         // 3. Run simulation
         var errors = DetectErrors(nets);
@@ -401,6 +436,30 @@ public class BreadboardSimulator : MonoBehaviour
                     Debug.LogError($"DIP Switch {componentKey} missing pin1/inputPin or pin2/outputPin");
                 }
             }
+            else if (componentKey.StartsWith("resistor"))
+            {
+                string pin1 = componentValue["pin1"]?.ToString();
+                string pin2 = componentValue["pin2"]?.ToString();
+
+                if (!string.IsNullOrEmpty(pin1) && !string.IsNullOrEmpty(pin2))
+                {
+                    // Make sure both pins exist in the graph
+                    graph.AddNode(pin1);
+                    graph.AddNode(pin2);
+                    
+                    // Connect the resistor pins
+                    graph.AddEdge(pin1, pin2);
+                    
+                    // Mark this connection as a resistor
+                    graph.MarkAsResistor(pin1, pin2, componentKey);
+                    
+                    // Note: We'll track resistors in nets during DetermineInitialStates
+                }
+                else
+                {
+                    Debug.LogError($"Resistor {componentKey} missing pin1 or pin2");
+                }
+            }
             // Handle other components by their pin connections
             else
             {
@@ -467,7 +526,7 @@ public class BreadboardSimulator : MonoBehaviour
     }
 
     // Determine initial electrical states based on power and ground connections
-    private void DetermineInitialStates(List<Net> nets)
+    private void DetermineInitialStates(List<Net> nets, BreadboardGraph graph, JToken components)
     {
         foreach (var net in nets)
         {
@@ -487,6 +546,49 @@ public class BreadboardSimulator : MonoBehaviour
             {
                 net.State = NodeState.UNINITIALIZED;
                 net.Source = PowerSource.NONE;
+            }
+            
+            // Track resistors in this net
+            foreach (var node in net.Nodes)
+            {
+                foreach (var resistorId in graph.GetResistorsForNode(node))
+                {
+                    net.AddSourceComponent(resistorId);
+                }
+            }
+        }
+        
+        // Also track other components in nets
+        foreach (JProperty componentProp in components)
+        {
+            string componentKey = componentProp.Name;
+            JToken componentValue = componentProp.Value;
+            
+            if (componentKey.StartsWith("resistor"))
+            {
+                // Resistors are already tracked above
+                continue;
+            }
+            
+            // For each pin in the component
+            foreach (JProperty property in componentValue.Children<JProperty>())
+            {
+                if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
+                {
+                    string node = property.Value.ToString();
+                    if (!string.IsNullOrEmpty(node))
+                    {
+                        // Find which net this node belongs to
+                        foreach (var net in nets)
+                        {
+                            if (net.Nodes.Contains(node))
+                            {
+                                net.AddSourceComponent(componentKey);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -725,9 +827,49 @@ public class BreadboardSimulator : MonoBehaviour
         int anodeNetId = connectedNets["anode"];
         int cathodeNetId = connectedNets["cathode"];
 
-        // LED is on when anode is HIGH and cathode is LOW
-        bool isOn = nets[anodeNetId].State == NodeState.HIGH &&
-                    nets[cathodeNetId].State == NodeState.LOW;
+        // Check if the LED has proper voltage and ground connections
+        bool hasProperVoltage = nets[anodeNetId].State == NodeState.HIGH && 
+                               nets[cathodeNetId].State == NodeState.LOW;
+
+        // Check if there's a resistor in the same net as the LED
+        bool hasResistor = false;
+        
+        // Look for resistors in the components list
+        foreach (var component in nets[anodeNetId].SourceComponents)
+        {
+            if (component.StartsWith("resistor"))
+            {
+                hasResistor = true;
+                break;
+            }
+        }
+
+        // If no resistor in anode net, check cathode net
+        if (!hasResistor)
+        {
+            foreach (var component in nets[cathodeNetId].SourceComponents)
+            {
+                if (component.StartsWith("resistor"))
+                {
+                    hasResistor = true;
+                    break;
+                }
+            }
+        }
+
+        // LED is on only when it has proper voltage AND a resistor
+        bool isOn = hasProperVoltage && hasResistor;
+
+        // Return error message if missing resistor
+        if (hasProperVoltage && !hasResistor)
+        {
+            return new
+            {
+                isOn = false,
+                grounded = nets[cathodeNetId].State == NodeState.LOW,
+                error = "LED requires a resistor to function properly"
+            };
+        }
 
         return new
         {
