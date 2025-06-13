@@ -241,6 +241,32 @@ public class BreadboardSimulator : MonoBehaviour
         TMP_Text experimentName = bc.transform.Find("Canvas").Find("ExperimentName").GetComponent<TMP_Text>();
         experimentName.text = result.ExperimentResult.ExperimentName;
 
+
+        // Activate appropriate diagram based on current experiment
+        Transform leftPanel = bc.transform.Find("Canvas").Find("LeftPanel");
+        GameObject diagram7448 = leftPanel.Find("7448Diagram").gameObject;
+        GameObject diagram74138 = leftPanel.Find("74138Diagram").gameObject;
+        GameObject diagram74148 = leftPanel.Find("74148Diagram").gameObject;
+
+        // Deactivate all diagrams first
+        diagram7448.SetActive(false);
+        diagram74138.SetActive(false);
+        diagram74148.SetActive(false);
+
+        // Activate the appropriate diagram based on current experiment
+        switch (CurrentExperimentId)
+        {
+            case 1: // IC 74138 Decoder experiment
+                diagram74138.SetActive(true);
+                break;
+            case 2: // BCD to 7-Segment Display experiment (uses IC 7448)
+                diagram7448.SetActive(true);
+                break;
+            case 3: // IC 74148 Encoder experiment
+                diagram74148.SetActive(true);
+                break;
+        }
+
         //Update Slider (child of experiment name)
         GameObject taskSlider = experimentName.transform.Find("Task Completion").gameObject;
         RectTransform fillSlider = taskSlider.transform.Find("Background").Find("Image").GetComponent<RectTransform>();
