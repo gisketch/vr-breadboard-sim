@@ -46,7 +46,7 @@ public class BreadboardSimulator : MonoBehaviour
         public PowerSource Source = PowerSource.NONE;
         public string SourceComponent;  // Which IC is driving this net, if any
         public List<string> SourceComponents = new List<string>();
-        
+
         // Add a method to add source components
         public void AddSourceComponent(string component)
         {
@@ -98,11 +98,11 @@ public class BreadboardSimulator : MonoBehaviour
             {
                 _resistorConnections[node2] = new List<string>();
             }
-            
+
             _resistorConnections[node1].Add(resistorId);
             _resistorConnections[node2].Add(resistorId);
         }
-        
+
         public List<string> GetResistorsForNode(string node)
         {
             if (_resistorConnections.ContainsKey(node))
@@ -472,13 +472,13 @@ public class BreadboardSimulator : MonoBehaviour
                     // Make sure both pins exist in the graph
                     graph.AddNode(pin1);
                     graph.AddNode(pin2);
-                    
+
                     // Connect the resistor pins
                     graph.AddEdge(pin1, pin2);
-                    
+
                     // Mark this connection as a resistor
                     graph.MarkAsResistor(pin1, pin2, componentKey);
-                    
+
                     // Note: We'll track resistors in nets during DetermineInitialStates
                 }
                 else
@@ -573,7 +573,7 @@ public class BreadboardSimulator : MonoBehaviour
                 net.State = NodeState.UNINITIALIZED;
                 net.Source = PowerSource.NONE;
             }
-            
+
             // Track resistors in this net
             foreach (var node in net.Nodes)
             {
@@ -583,19 +583,19 @@ public class BreadboardSimulator : MonoBehaviour
                 }
             }
         }
-        
+
         // Also track other components in nets
         foreach (JProperty componentProp in components)
         {
             string componentKey = componentProp.Name;
             JToken componentValue = componentProp.Value;
-            
+
             if (componentKey.StartsWith("resistor"))
             {
                 // Resistors are already tracked above
                 continue;
             }
-            
+
             // For each pin in the component
             foreach (JProperty property in componentValue.Children<JProperty>())
             {
@@ -743,7 +743,7 @@ public class BreadboardSimulator : MonoBehaviour
                     continue;
                 }
 
-                // For DIP switches, apply pull-up behavior to any floating connections
+                // For DIP switches, handle realistic behavior(no automatic pull-up)
                 if (componentKey.StartsWith("dipSwitch"))
                 {
                     bool isOn = componentValue["isOn"] != null ?
@@ -756,59 +756,43 @@ public class BreadboardSimulator : MonoBehaviour
                     string pin2 = componentValue["pin2"] != null ? componentValue["pin2"].ToString() :
                                   componentValue["outputPin"]?.ToString();
 
-                    // If switch is OFF, we need to apply pull-up behavior
-                    if (!isOn && !string.IsNullOrEmpty(pin1) && !string.IsNullOrEmpty(pin2))
+                    // DIP switch behavior:
+                    // - When ON: pins are connected (handled in BuildGraph)
+                    // - When OFF: pins are isolated, no automatic pull-up
+                    // - Users must add physical resistors for pull-up/pull-down behavior
+
+                    // Check if pins are in nets for state reporting
+                    bool pin1InNet = nodeToNetMap.ContainsKey(pin1);
+                    bool pin2InNet = nodeToNetMap.ContainsKey(pin2);
+
+                    object switchState;
+                    if (pin1InNet && pin2InNet)
                     {
-                        // Check if pins are in nets
-                        bool pin1InNet = nodeToNetMap.ContainsKey(pin1);
-                        bool pin2InNet = nodeToNetMap.ContainsKey(pin2);
+                        int net1Id = nodeToNetMap[pin1];
+                        int net2Id = nodeToNetMap[pin2];
 
-                        if (pin1InNet && pin2InNet)
+                        switchState = new
                         {
-                            int net1Id = nodeToNetMap[pin1];
-                            int net2Id = nodeToNetMap[pin2];
-
-                            // Check if either pin is already connected to a driven signal
-                            bool net1Driven = nets[net1Id].State != NodeState.UNINITIALIZED;
-                            bool net2Driven = nets[net2Id].State != NodeState.UNINITIALIZED;
-
-                            // Apply pull-up to pin2 if pin1 is driven but pin2 is not
-                            if (net1Driven && !net2Driven)
-                            {
-                                nets[net2Id].State = NodeState.HIGH;
-                                nets[net2Id].Source = PowerSource.RAIL;
-                                nets[net2Id].SourceComponent = componentKey;
-                                changed = true;
-                                Debug.Log($"Applied pull-up to pin2 ({pin2}) of {componentKey}");
-                            }
-                            // Apply pull-up to pin1 if pin2 is driven but pin1 is not
-                            else if (!net1Driven && net2Driven)
-                            {
-                                nets[net1Id].State = NodeState.HIGH;
-                                nets[net1Id].Source = PowerSource.RAIL;
-                                nets[net1Id].SourceComponent = componentKey;
-                                changed = true;
-                                Debug.Log($"Applied pull-up to pin1 ({pin1}) of {componentKey}");
-                            }
-                            // If neither is driven, apply pull-up to both pins
-                            else if (!net1Driven && !net2Driven)
-                            {
-                                nets[net1Id].State = NodeState.HIGH;
-                                nets[net1Id].Source = PowerSource.RAIL;
-                                nets[net1Id].SourceComponent = componentKey;
-
-                                nets[net2Id].State = NodeState.HIGH;
-                                nets[net2Id].Source = PowerSource.RAIL;
-                                nets[net2Id].SourceComponent = componentKey;
-
-                                changed = true;
-                                Debug.Log($"Applied pull-up to both pins of {componentKey}");
-                            }
-                            // If both are driven, no action needed
-                        }
+                            isOn = isOn,
+                            pin1State = nets[net1Id].State.ToString(),
+                            pin2State = nets[net2Id].State.ToString(),
+                            pin1HasResistor = nets[net1Id].SourceComponents.Any(c => c.StartsWith("resistor")),
+                            pin2HasResistor = nets[net2Id].SourceComponents.Any(c => c.StartsWith("resistor"))
+                        };
+                    }
+                    else
+                    {
+                        switchState = new
+                        {
+                            isOn = isOn,
+                            pin1State = "UNCONNECTED",
+                            pin2State = "UNCONNECTED",
+                            pin1HasResistor = false,
+                            pin2HasResistor = false
+                        };
                     }
 
-                    componentStates[componentKey] = new { isOn = isOn };
+                    componentStates[componentKey] = switchState;
                     continue;
                 }
 
@@ -854,12 +838,12 @@ public class BreadboardSimulator : MonoBehaviour
         int cathodeNetId = connectedNets["cathode"];
 
         // Check if the LED has proper voltage and ground connections
-        bool hasProperVoltage = nets[anodeNetId].State == NodeState.HIGH && 
+        bool hasProperVoltage = nets[anodeNetId].State == NodeState.HIGH &&
                                nets[cathodeNetId].State == NodeState.LOW;
 
         // Check if there's a resistor in the same net as the LED
         bool hasResistor = false;
-        
+
         // Look for resistors in the components list
         foreach (var component in nets[anodeNetId].SourceComponents)
         {

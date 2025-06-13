@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public enum ComponentType { None, Wire, LED, SevenSegment, IC, DipSwitch, Resistor }
 public enum ComponentColor { Red, Green, Blue }
