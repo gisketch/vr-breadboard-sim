@@ -248,6 +248,8 @@ public class BreadboardStateUtils : MonoBehaviour
                        component.pin15 == node || component.pin16 == node;
             case "dipSwitch":
                 return component.pin1 == node || component.pin2 == node;
+            case "resistor":
+                return component.resistorPin1 == node || component.resistorPin2 == node;
 
             default:
                 return false;
@@ -305,6 +307,10 @@ public class BreadboardStateUtils : MonoBehaviour
             case "dipSwitch":
                 if (!string.IsNullOrEmpty(component.pin1)) nodes.Add(component.pin1);
                 if (!string.IsNullOrEmpty(component.pin2)) nodes.Add(component.pin2);
+                break;
+            case "resistor":
+                if (!string.IsNullOrEmpty(component.resistorPin1)) nodes.Add(component.resistorPin1);
+                if (!string.IsNullOrEmpty(component.resistorPin2)) nodes.Add(component.resistorPin2);
                 break;
         }
 
@@ -542,6 +548,9 @@ public class BreadboardStateUtils : MonoBehaviour
                 break;
             case "dipSwitch":
                 CreateDipSwitchComponent(component, componentsParent, componentKey);
+                break;
+            case "resistor":
+                CreateResistorComponent(component, componentsParent, componentKey);
                 break;
 
             default:
@@ -828,6 +837,29 @@ public class BreadboardStateUtils : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogError($"Error adding resistor: {e.Message}");
+        }
+    }
+
+    private void CreateResistorComponent(BreadboardComponentData resistor, Transform parent, string name)
+    {
+        if (string.IsNullOrEmpty(resistor.resistorPin1) || string.IsNullOrEmpty(resistor.resistorPin2))
+        {
+            Debug.LogWarning("Invalid resistor configuration");
+            return;
+        }
+    
+        GameObject newResistor = Instantiate(resistorComponent, parent);
+        newResistor.name = name;
+        Resistor resistorScript = newResistor.GetComponent<Resistor>();
+    
+        if (resistorScript != null)
+        {
+            resistorScript.Initialize(resistor.resistorPin1, resistor.resistorPin2, parent.parent);
+        }
+        else
+        {
+            Debug.LogError("Resistor prefab is missing Resistor component");
+            Destroy(newResistor);
         }
     }
 }

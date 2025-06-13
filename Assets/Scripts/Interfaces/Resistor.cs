@@ -1,10 +1,12 @@
 using UnityEngine;
 using System.Collections;
+using System.Security.Authentication.ExtendedProtection;
 
 public class Resistor : MonoBehaviour
 {
     private Node firstPin;
     private Node secondPin;
+    private Node pivotPin;
     
     [SerializeField] private MeshRenderer meshRenderer;
     
@@ -23,14 +25,15 @@ public class Resistor : MonoBehaviour
             Debug.LogError($"Could not find nodes for resistor: {pin1}, {pin2}");
             return;
         }
-        
-        // Position the resistor between the two nodes
-        Vector3 midpoint = (firstPin.transform.position + secondPin.transform.position) / 2f;
-        transform.position = midpoint;
-        
-        // Rotate to align with the connection
-        Vector3 direction = (secondPin.transform.position - firstPin.transform.position).normalized;
-        transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+
+        // if first pin name has letter A, then use firstPin, else use secondPin
+        pivotPin = firstPin.name.Contains("A") ? firstPin : secondPin;
+
+
+        //Set transform
+        Vector3 pin1LocalPos = reference.InverseTransformPoint(pivotPin.transform.position);
+
+        transform.localPosition = pin1LocalPos;
     }
     
     private Node FindNodeRecursively(Transform parent, string nodeName)
