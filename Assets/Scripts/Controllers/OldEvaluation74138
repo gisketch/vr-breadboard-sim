@@ -256,3 +256,270 @@
         return result;
     }
 }
+
+
+    private ExperimentResult EvaluateBCDTo7SegmentExperiment(
+        SimulationResult simResult,
+        ExperimentDefinition experiment,
+        JToken components)
+    {
+        var result = new ExperimentResult
+        {
+            ExperimentName = experiment.Name,
+            ExperimentId = experiment.Id,
+            TotalInstructions = experiment.TotalInstructions,
+            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
+            InstructionResults = new Dictionary<int, bool>(),
+            Messages = new List<string>(),
+            IsSetupValid = true
+        };
+
+        // Count components and validate types
+        int ic7448Count = 0;
+        int sevenSegCount = 0;
+        int dipSwitchCount = 0;
+
+        string mainIc = "";
+        string mainSevenSeg = "";
+
+        // Get component data
+        dynamic ic7448State = null;
+        dynamic sevenSegState = null;
+
+        foreach (var comp in simResult.ComponentStates)
+        {
+            if (comp.Key.StartsWith("ic"))
+            {
+                dynamic dynamicValue = comp.Value;
+                string typeValue = dynamicValue.type;
+
+                if (typeValue == "IC7448")
+                {
+                    ic7448Count++;
+                    ic7448State = dynamicValue;
+                    mainIc = comp.Key;
+                }
+            }
+            else if (comp.Key.StartsWith("sevenSeg"))
+            {
+                sevenSegCount++;
+                sevenSegState = comp.Value;
+                mainSevenSeg = comp.Key;
+            }
+            else if (comp.Key.StartsWith("dipSwitch"))
+            {
+                dipSwitchCount++;
+            }
+        }
+
+        // Validate component counts
+        if (ic7448Count != 1)
+        {
+            result.Messages.Add($"Expected exactly 1 IC 7448, found {ic7448Count}");
+            result.IsSetupValid = false;
+        }
+
+        if (sevenSegCount != 1)
+        {
+            result.Messages.Add($"Expected exactly 1 seven-segment display, found {sevenSegCount}");
+            result.IsSetupValid = false;
+        }
+
+        if (dipSwitchCount < 4)
+        {
+            result.Messages.Add($"Expected at least 4 DIP switches, found {dipSwitchCount}");
+            result.IsSetupValid = false;
+        }
+
+        // Only proceed with detailed checks if basic components are present
+        if (ic7448State != null && sevenSegState != null)
+        {
+            // Check if 7-segment is grounded
+            bool sevenSegGrounded = false;
+            try
+            {
+                sevenSegGrounded = sevenSegState.grounded;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot access seven-segment grounding status");
+                result.IsSetupValid = false;
+            }
+
+            if (!sevenSegGrounded)
+            {
+                result.Messages.Add("Seven-segment display is not properly grounded");
+                result.IsSetupValid = false;
+            }
+
+            // Check IC 7448 control pins (LT, BI_RBO, RBI)
+            bool ltActive = false;
+            bool biRboActive = false;
+            bool rbiActive = false;
+
+            try
+            {
+                ltActive = ic7448State.control.LT;
+                biRboActive = ic7448State.control.BI_RBO;
+                rbiActive = ic7448State.control.RBI;
+            }
+            catch (Exception)
+            {
+                result.IsSetupValid = false;
+            }
+
+            // Add individual messages for each control pin
+            if (!ltActive)
+            {
+                result.Messages.Add("IC 7448 LT pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            if (!biRboActive)
+            {
+                result.Messages.Add("IC 7448 BI_RBO pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            if (!rbiActive)
+            {
+                result.Messages.Add("IC 7448 RBI pin must be set to HIGH");
+                result.IsSetupValid = false;
+            }
+
+            // Check if IC has uninitialized inputs
+            string status = "";
+            try
+            {
+                status = ic7448State.status;
+
+                if (status == "Uninitialized inputs")
+                {
+                    result.Messages.Add("IC 7448 has uninitialized inputs. Check DIP switch connections.");
+                    result.IsSetupValid = false;
+                }
+            }
+            catch (Exception)
+            {
+                Debug.Log("No status");
+            }
+
+            // Extract ic1 and sevenSeg1 objects
+            JToken icComp = null;
+            JToken sevenSegComp = null;
+
+            foreach (JProperty componentProp in components)
+            {
+                if (componentProp.Name.Equals(mainIc))
+                {
+                    icComp = componentProp.Value;
+                }
+                else if (componentProp.Name.Equals(mainSevenSeg))
+                {
+                    sevenSegComp = componentProp.Value;
+                }
+            }
+
+            // Check if required components are found
+            if (icComp == null || sevenSegComp == null)
+            {
+                result.Messages.Add("Missing IC and Seven Segment components.");
+                result.IsSetupValid = false;
+            }
+
+            // Define all the connections that need to be checked
+            Dictionary<string, string> connectionChecks = new Dictionary<string, string>
+                {
+                    { "pin13", "nodeA" },
+                    { "pin12", "nodeB" },
+                    { "pin11", "nodeC" },
+                    { "pin10", "nodeD" },
+                    { "pin9", "nodeE" },
+                    { "pin14", "nodeG" },
+                    { "pin15", "nodeF" }
+                };
+
+            // Check all required connections
+            bool allConnected = true;
+
+            foreach (var check in connectionChecks)
+            {
+                string pinKey = check.Key;
+                string nodeKey = check.Value;
+
+                string pinValue = icComp[pinKey]?.ToString();
+                string nodeValue = sevenSegComp[nodeKey]?.ToString();
+
+                if (string.IsNullOrEmpty(pinValue) || string.IsNullOrEmpty(nodeValue))
+                {
+                    allConnected = false;
+                    continue;
+                }
+
+                if (!AreNodesConnected(pinValue, nodeValue, simResult.Nets))
+                {
+                    allConnected = false;
+                }
+            }
+
+            if (!allConnected)
+            {
+                result.Messages.Add("IC7448 outputs are not properly connected to Seven Segment inputs.");
+                result.IsSetupValid = false;
+            }
+        }
+
+        // Only evaluate the experiment if the setup is valid
+        if (result.IsSetupValid)
+        {
+            // Get expected BCD input for current instruction (0000 to 1111)
+            bool[] expectedBits = new bool[4];
+            for (int i = 0; i < 4; i++)
+            {
+                expectedBits[i] = ((CurrentInstructionIndex >> i) & 1) == 1;
+            }
+
+            // Get actual IC inputs
+            bool inputA = false, inputB = false, inputC = false, inputD = false;
+            try
+            {
+                inputA = ic7448State.inputs.A;
+                inputB = ic7448State.inputs.B;
+                inputC = ic7448State.inputs.C;
+                inputD = ic7448State.inputs.D;
+            }
+            catch (Exception)
+            {
+                result.Messages.Add("Cannot evaluate: IC inputs not found in simulation result");
+                result.InstructionResults[CurrentInstructionIndex] = false;
+                return result;
+            }
+
+            // Compare expected and actual inputs
+            bool[] actualBits = new[] { inputA, inputB, inputC, inputD };
+            bool allMatch = true;
+
+            for (int i = 0; i < 4; i++)
+            {
+                if (actualBits[i] != expectedBits[i])
+                {
+                    allMatch = false;
+                    break;
+                }
+            }
+
+            result.InstructionResults[CurrentInstructionIndex] = allMatch;
+
+            if (allMatch)
+            {
+                // Mark instruction as completed
+                _completedInstructions[experiment.Id].Add(CurrentInstructionIndex);
+                result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
+
+                NextInstruction();
+            }
+
+        }
+
+        return result;
+    }
