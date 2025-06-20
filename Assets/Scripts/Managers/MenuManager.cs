@@ -15,6 +15,17 @@ namespace Mirror
         public Transform buttonsContainer;
         public GameObject buttonPrefab;
         public GameObject joinMenuPrefab;
+        public GameObject tutorialPrefab;
+
+        [Header("Tutorial Content")]
+        public Sprite instructorTutorialImage;
+        public Sprite studentTutorialImage;
+        
+        [TextArea(10, 15)]
+        public string instructorInstructions = "<b><size=32>Instructor Controls</size></b>\n\n\n\n<b><size=24>Spectator Mode:</size></b>\n\n• <b>Left Mouse Button</b> - Switch to next student\n\n• <b>Right Mouse Button</b> - Switch to previous student";
+        
+        [TextArea(10, 15)]
+        public string studentInstructions = "<b><size=32>Student Mode Controls</size></b>\n\n\n\n<b><size=24>Movement & Navigation:</size></b>\n\n• <b>Joystick</b> - Move around the environment\n\n• <b>Head Movement</b> - Look around and navigate in VR space\n\n• <b>A Button</b> - Interact with objects and interface elements\n\n\n\n<b><size=24>Additional Controls:</size></b>\n\n• <b>Bumper</b> - [Function to be defined]\n\n• <b>Trigger</b> - [Function to be defined]\n\n• <b>B Button</b> - [Function to be defined]\n\n\n\n<b><size=32>Breadboard Mode Controls</size></b>\n\n\n\n<b><size=24>Movement & Navigation:</size></b>\n\n• <b>Joystick</b> - Move around the environment\n\n• <b>Head Movement</b> - Look around and navigate in VR space\n\n\n\n<b><size=24>Interaction:</size></b>\n\n• <b>A Button</b> - Interact with buttons and place components\n\n• <b>B Button</b> - Cancel actions or remove components\n\n• <b>C Button</b> - Toggle ascent\n\n• <b>D Button</b> - Toggle descent";
 
         [Header("Custom Events")]
         public UnityEvent onCreateLab;
@@ -23,6 +34,7 @@ namespace Mirror
 
         private Stack<MenuState> navigationStack = new Stack<MenuState>();
         private GameObject currentJoinMenu;
+        private GameObject currentTutorialMenu;
         private TMP_Text ipInputField;
         private Button joinButton;
         private bool isJoinMenuActive = false;
@@ -33,7 +45,9 @@ namespace Mirror
             RoleSelect,
             Instructor,
             Student,
-            JoinLab
+            JoinLab,
+            InstructorTutorial,
+            StudentTutorial
         }
 
         void Start()
@@ -53,6 +67,12 @@ namespace Mirror
             if (isJoinMenuActive)
             {
                 CleanupJoinMenu();
+            }
+            
+            if (currentTutorialMenu != null)
+            {
+                Destroy(currentTutorialMenu);
+                currentTutorialMenu = null;
             }
         }
 
@@ -86,8 +106,20 @@ namespace Mirror
 
                 case MenuState.RoleSelect:
                     headerText.text = "Role";
-                    CreateButton("Instructor", () => NavigateTo(MenuState.Instructor));
-                    CreateButton("Student", () => NavigateTo(MenuState.Student));
+                    CreateButton("Instructor", () => NavigateTo(MenuState.InstructorTutorial));
+                    CreateButton("Student", () => NavigateTo(MenuState.StudentTutorial));
+                    CreateButton("Back", GoBack);
+                    break;
+
+                case MenuState.InstructorTutorial:
+                    headerText.text = "Instructor Tutorial";
+                    SetupTutorialMenu(instructorTutorialImage, instructorInstructions, () => NavigateTo(MenuState.Instructor));
+                    CreateButton("Back", GoBack);
+                    break;
+
+                case MenuState.StudentTutorial:
+                    headerText.text = "Student Tutorial";
+                    SetupTutorialMenu(studentTutorialImage, studentInstructions, () => NavigateTo(MenuState.Student));
                     CreateButton("Back", GoBack);
                     break;
 
@@ -108,6 +140,56 @@ namespace Mirror
                     SetupJoinLabMenu();
                     break;
             }
+        }
+
+        private void SetupTutorialMenu(Sprite tutorialImage, string instructions, UnityAction startAction)
+        {
+            // Instantiate the tutorial prefab
+            currentTutorialMenu = Instantiate(tutorialPrefab, buttonsContainer);
+
+            // Set up the image - looking in Container -> TutorialImage
+            Transform container = currentTutorialMenu.transform.Find("Container");
+            if (container != null)
+            {
+                Image imageComponent = container.Find("TutorialImage").GetComponent<Image>();
+                if (imageComponent != null && tutorialImage != null)
+                {
+                    imageComponent.sprite = tutorialImage;
+                }
+                else
+                {
+                    Debug.LogWarning("TutorialImage component not found in Container or tutorial image is null");
+                }
+
+                // Set up the instruction text - looking in Container -> InstructionText
+                TMP_Text instructionText = container.Find("InstructionText").GetComponent<TMP_Text>();
+                if (instructionText != null)
+                {
+                    // Force enable all rich text settings
+                    instructionText.richText = true;
+                    instructionText.parseCtrlCharacters = true;
+                    instructionText.enableWordWrapping = true;
+                    instructionText.overflowMode = TextOverflowModes.Overflow;
+                    
+                    // Force the text to update
+                    instructionText.text = instructions;
+                    instructionText.ForceMeshUpdate();
+                    
+                    Debug.Log("Rich text enabled: " + instructionText.richText);
+                    Debug.Log("Text content: " + instructionText.text);
+                }
+                else
+                {
+                    Debug.LogError("InstructionText component not found in Container");
+                }
+            }
+            else
+            {
+                Debug.LogError("Container not found in tutorial prefab");
+            }
+
+            // Create the START button
+            CreateButton("START", startAction);
         }
 
         private void SetupJoinLabMenu()

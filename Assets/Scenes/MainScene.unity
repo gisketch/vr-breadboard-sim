@@ -1008,6 +1008,8 @@ MonoBehaviour:
     type: 3}
   taskText: {fileID: 7560837173208801928, guid: 299804c34f7fa874ea4f98e944ffd793,
     type: 3}
+  componentText: {fileID: 1015895723998485129, guid: b819e54a359a4e54c872786f8c48eabe,
+    type: 3}
 --- !u!4 &660119399
 Transform:
   m_ObjectHideFlags: 0

@@ -801,6 +801,27 @@ public class BreadboardSimulator : MonoBehaviour
                     bool pin1InNet = nodeToNetMap.ContainsKey(pin1);
                     bool pin2InNet = nodeToNetMap.ContainsKey(pin2);
 
+                    // Helper function to check for resistors on a specific pin
+                    bool CheckPinHasResistor(string pinNode)
+                    {
+                        // Check all resistor components to see if any connect to this pin
+                        foreach (JProperty resistorProp in components)
+                        {
+                            if (resistorProp.Name.StartsWith("resistor"))
+                            {
+                                JToken resistorValue = resistorProp.Value;
+                                string resistorPin1 = resistorValue["pin1"]?.ToString();
+                                string resistorPin2 = resistorValue["pin2"]?.ToString();
+
+                                if (resistorPin1 == pinNode || resistorPin2 == pinNode)
+                                {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+
                     object switchState;
                     if (pin1InNet && pin2InNet)
                     {
@@ -816,6 +837,8 @@ public class BreadboardSimulator : MonoBehaviour
                         {
                             isOn = isOn,
                             isGrounded = isGrounded,
+                            pin1 = pin1,
+                            pin2 = pin2,
                             pin1State = nets[net1Id].State.ToString(),
                             pin2State = nets[net2Id].State.ToString(),
                             pin1HasResistor = nets[net1Id].SourceComponents.Any(c => c.StartsWith("resistor")),
@@ -824,14 +847,18 @@ public class BreadboardSimulator : MonoBehaviour
                     }
                     else
                     {
+                        // Even when switch is off and pins are not in nets, 
+                        // we should still check for resistors on individual pins
                         switchState = new
                         {
                             isOn = isOn,
                             isGrounded = false,
+                            pin1 = pin1,
+                            pin2 = pin2,
                             pin1State = "UNCONNECTED",
                             pin2State = "UNCONNECTED",
-                            pin1HasResistor = false,
-                            pin2HasResistor = false
+                            pin1HasResistor = CheckPinHasResistor(pin1),
+                            pin2HasResistor = CheckPinHasResistor(pin2)
                         };
                     }
 
@@ -1137,40 +1164,44 @@ public class BreadboardSimulator : MonoBehaviour
         bool a1 = nets[connectedNets["pin2"]].State == NodeState.HIGH;
         bool a2 = nets[connectedNets["pin3"]].State == NodeState.HIGH;
 
-        // Get enable inputs (E1, E2, E3)
-        bool e1 = true;  // Default to HIGH (disabled)
-        bool e2 = true;  // Default to HIGH (disabled)
-        bool e3 = false; // Default to LOW (disabled)
+        // Get enable inputs (E1, E2, E3) with defaults
+        bool e1 = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.LOW;
+        bool e2 = !connectedNets.ContainsKey("pin5") || nets[connectedNets["pin5"]].State == NodeState.LOW;
+        bool e3 = connectedNets.ContainsKey("pin6") && nets[connectedNets["pin6"]].State == NodeState.HIGH;
 
-        if (connectedNets.ContainsKey("pin4")) // E1 (active LOW)
+        // Calculate binary address (0-7)
+        int address = (a2 ? 4 : 0) + (a1 ? 2 : 0) + (a0 ? 1 : 0);
+
+        // Initialize all outputs as HIGH
+        var outputs = new Dictionary<string, bool>();
+        for (int i = 0; i < 8; i++)
         {
-            e1 = nets[connectedNets["pin4"]].State == NodeState.LOW;
-        }
-        if (connectedNets.ContainsKey("pin5")) // E2 (active LOW)
-        {
-            e2 = nets[connectedNets["pin5"]].State == NodeState.LOW;
-        }
-        if (connectedNets.ContainsKey("pin6")) // E3 (active HIGH)
-        {
-            e3 = nets[connectedNets["pin6"]].State == NodeState.HIGH;
+            outputs["O" + i] = false;
         }
 
-        // Check if decoder is enabled
+        // Set active output if enabled (E1 high, E2 and E3 low)
         bool enabled = e1 && e2 && e3;
-
-        // Calculate selected output (0-7)
-        int selectedOutput = (a2 ? 4 : 0) + (a1 ? 2 : 0) + (a0 ? 1 : 0);
-
-        // Update output pins (O0-O7, active LOW)
-        var outputPins = new[] { "pin15", "pin14", "pin13", "pin12", "pin11", "pin10", "pin9", "pin7" }; // O0-O7
-        for (int i = 0; i < outputPins.Length; i++)
+        if (enabled)
         {
-            if (connectedNets.ContainsKey(outputPins[i]))
-            {
-                int netId = connectedNets[outputPins[i]];
+            outputs["O" + address] = true;
+        }
 
-                // Output is LOW only if enabled and this output is selected
-                NodeState newState = (enabled && i == selectedOutput) ? NodeState.LOW : NodeState.HIGH;
+        // Output pin mapping
+        var outputPins = new Dictionary<string, string> {
+            {"O0", "pin15"}, {"O1", "pin14"}, {"O2", "pin13"}, {"O3", "pin12"},
+            {"O4", "pin11"}, {"O5", "pin10"}, {"O6", "pin9"}, {"O7", "pin7"}
+        };
+
+        // Update output pins
+        foreach (var kvp in outputPins)
+        {
+            string output = kvp.Key;
+            string pin = kvp.Value;
+
+            if (connectedNets.ContainsKey(pin))
+            {
+                int netId = connectedNets[pin];
+                NodeState newState = outputs[output] ? NodeState.HIGH : NodeState.LOW;
 
                 // Only update if state changed
                 if (nets[netId].State != newState)
@@ -1187,12 +1218,12 @@ public class BreadboardSimulator : MonoBehaviour
         {
             type = "IC74138",
             status = "Initialized",
-            hasVcc = true,
             hasGnd = true,
+            hasVcc = true,
             address = new { A0 = a0, A1 = a1, A2 = a2 },
             enable = new { E1 = e1, E2 = e2, E3 = e3 },
-            enabled = enabled,
-            selectedOutput = selectedOutput
+            outputs = outputs,
+            enabled = enabled
         });
     }
 

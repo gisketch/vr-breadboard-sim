@@ -155,6 +155,10 @@ namespace Mirror
 
         void OnBreadboardComponentsChanged(SyncIDictionary<string, BreadboardComponentData>.Operation op, string key, BreadboardComponentData item)
         {
+            // Log the operation and component details
+            Debug.Log($"Breadboard Component Change: {op} - Key: {key}");
+            Debug.Log($"Component Details - Type: {item.type}, Start: {item.startNode}, End: {item.endNode}, Color: {item.color}");
+
             BreadboardStateUtils.Instance.VisualizeBreadboard(this);
         }
 
@@ -169,7 +173,19 @@ namespace Mirror
                 regularDict[kvp.Key] = kvp.Value;
             }
 
-            string jsonState = JsonUtility.ToJson(new SerializableBreadboardState(regularDict));
+            // Get current counter values from BreadboardStateUtils
+            var counters = BreadboardStateUtils.Instance.GetCounters();
+
+            string jsonState = JsonUtility.ToJson(new SerializableBreadboardState(
+                regularDict,
+                counters.wire,
+                counters.led,
+                counters.sevenSeg,
+                counters.ic,
+                counters.dipSwitch,
+                counters.resistor
+            ));
+
             PlayerPrefs.SetString($"BreadboardState_Slot{slot}", jsonState);
             PlayerPrefs.Save();
             Debug.Log($"Saved breadboard state to slot {slot}");
@@ -190,6 +206,19 @@ namespace Mirror
 
             // Clear current components
             CmdClearAllComponents();
+
+            // Reset counters first
+            BreadboardStateUtils.Instance.ResetCounters();
+
+            // Restore counter values from saved state
+            BreadboardStateUtils.Instance.SetCounters(
+                loadedState.wireCounter,
+                loadedState.ledCounter,
+                loadedState.sevenSegCounter,
+                loadedState.icCounter,
+                loadedState.dipSwitchCounter,
+                loadedState.resistorCounter
+            );
 
             // Add loaded components
             foreach (var kvp in loadedState.components)
@@ -503,8 +532,14 @@ namespace Mirror
     public class SerializableBreadboardState
     {
         public SerializableKeyValuePair[] components;
+        public int wireCounter;
+        public int ledCounter;
+        public int sevenSegCounter;
+        public int icCounter;
+        public int dipSwitchCounter;
+        public int resistorCounter;
 
-        public SerializableBreadboardState(Dictionary<string, BreadboardComponentData> dict)
+        public SerializableBreadboardState(Dictionary<string, BreadboardComponentData> dict, int wireCount, int ledCount, int sevenSegCount, int icCount, int dipSwitchCount, int resistorCount)
         {
             components = new SerializableKeyValuePair[dict.Count];
             int i = 0;
@@ -517,6 +552,13 @@ namespace Mirror
                 };
                 i++;
             }
+
+            wireCounter = wireCount;
+            ledCounter = ledCount;
+            sevenSegCounter = sevenSegCount;
+            icCounter = icCount;
+            dipSwitchCounter = dipSwitchCount;
+            resistorCounter = resistorCount;
         }
     }
 

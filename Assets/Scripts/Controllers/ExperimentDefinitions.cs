@@ -32,41 +32,52 @@ public class ExperimentDefinitions
             TotalInstructions = 35,
             InstructionDescriptions = new Dictionary<int, string>
             {
-                [0] = "Place the IC 74138 on the breadboard",
-                [1] = "Connect VCC (pin 16) to the positive power rail",
-                [2] = "Connect GND (pin 8) to the negative power rail",
-                [3] = "Connect enable pins G1 (pin 6) to HIGH",
-                [4] = "Connect enable pins G2A (pin 4) and G2B (pin 5) to LOW",
-                [5] = "Connect input A (pin 1) to DIP switch 1",
-                [6] = "Connect input B (pin 2) to DIP switch 2",
-                [7] = "Connect input C (pin 3) to DIP switch 3",
-                [8] = "Connect LED 1 to output Y0 (pin 15) through a resistor",
-                [9] = "Connect LED 2 to output Y1 (pin 14) through a resistor",
-                [10] = "Connect LED 3 to output Y2 (pin 13) through a resistor",
-                [11] = "Connect LED 4 to output Y3 (pin 12) through a resistor",
-                [12] = "Connect LED 5 to output Y4 (pin 11) through a resistor",
-                [13] = "Connect LED 6 to output Y5 (pin 10) through a resistor",
-                [14] = "Connect LED 7 to output Y6 (pin 9) through a resistor",
-                [15] = "Connect LED 8 to output Y7 (pin 7) through a resistor",
-                [16] = "Test with DIP switch combination 000 (all switches OFF)",
-                [17] = "Test with DIP switch combination 001",
-                [18] = "Test with DIP switch combination 010",
-                [19] = "Test with DIP switch combination 011",
-                [20] = "Test with DIP switch combination 100",
-                [21] = "Test with DIP switch combination 101",
-                [22] = "Test with DIP switch combination 110",
-                [23] = "Test with DIP switch combination 111 (all switches ON)",
-                [24] = "Verify that only one LED lights up for each combination",
-                [25] = "Verify LED 1 lights for input 000",
-                [26] = "Verify LED 2 lights for input 001",
-                [27] = "Verify LED 3 lights for input 010",
-                [28] = "Verify LED 4 lights for input 011",
-                [29] = "Verify LED 5 lights for input 100",
-                [30] = "Verify LED 6 lights for input 101",
-                [31] = "Verify LED 7 lights for input 110",
-                [32] = "Verify LED 8 lights for input 111",
-                [33] = "Check all connections are secure",
-                [34] = "Experiment completed successfully!"
+                // 1.0 Create pull-up resistor inputs
+                [0] = "Add a resistor and connect it to any power terminal",
+                [1] = "Add a switch and connect it in series with the resistor",
+                [2] = "Ground the switch",
+                [3] = "Add a second resistor and connect it to any power terminal",
+                [4] = "Add a second switch and connect it in series with the second resistor",
+                [5] = "Ground the second switch",
+                [6] = "Add a third resistor and connect it to any power terminal",
+                [7] = "Add a third switch and connect it in series with the third resistor",
+                [8] = "Ground the third switch",
+
+                // 1.1 Connect IC Connections
+                [9] = "Add IC74138 and Ground it to Ground Breadboard",
+                [10] = "VCC IC74138 to VCC Breadboard",
+                [11] = "IC74138 A0 to input 1 from pull-up resistor input",
+                [12] = "IC74138 A1 to input 2 from pull-up resistor input",
+                [13] = "IC74138 A2 to input 3 from pull-up resistor input",
+
+                // 1.2 Connect IC74138 enable pins
+                [14] = "E1 set to LOW",
+                [15] = "E2 set to LOW",
+                [16] = "E3 set to HIGH",
+
+                // Add LEDs and connect to outputs
+                [17] = "Add 8 LEDs",
+                [18] = "Connect LEDs to ground",
+
+                // 1.3 Connect IC74138 outputs to LEDs
+                [19] = "Connect O0 to LED0",
+                [20] = "Connect O1 to LED1",
+                [21] = "Connect O2 to LED2",
+                [22] = "Connect O3 to LED3",
+                [23] = "Connect O4 to LED4",
+                [24] = "Connect O5 to LED5",
+                [25] = "Connect O6 to LED6",
+                [26] = "Connect O7 to LED7",
+
+                // 2. Display outputs on LEDs
+                [27] = "Set inputs to 000 (A2=0, A1=0, A0=0)",
+                [28] = "Set inputs to 001 (A2=0, A1=0, A0=1)",
+                [29] = "Set inputs to 010 (A2=0, A1=1, A0=0)",
+                [30] = "Set inputs to 011 (A2=0, A1=1, A0=1)",
+                [31] = "Set inputs to 100 (A2=1, A1=0, A0=0)",
+                [32] = "Set inputs to 101 (A2=1, A1=0, A0=1)",
+                [33] = "Set inputs to 110 (A2=1, A1=1, A0=0)",
+                [34] = "Set inputs to 111 (A2=1, A1=1, A0=1)"
             }
         };
         _experiments[decoderExperiment.Id] = decoderExperiment;

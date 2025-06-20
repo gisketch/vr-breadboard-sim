@@ -862,4 +862,30 @@ public class BreadboardStateUtils : MonoBehaviour
             Destroy(newResistor);
         }
     }
+
+    // Add these new methods for counter management
+    public (int wire, int led, int sevenSeg, int ic, int dipSwitch, int resistor) GetCounters()
+    {
+        return (wireCounter, ledCounter, sevenSegCounter, icCounter, dipSwitchCounter, resistorCounter);
+    }
+
+    public void SetCounters(int wire, int led, int sevenSeg, int ic, int dipSwitch, int resistor)
+    {
+        wireCounter = wire;
+        ledCounter = led;
+        sevenSegCounter = sevenSeg;
+        icCounter = ic;
+        dipSwitchCounter = dipSwitch;
+        resistorCounter = resistor;
+    }
+
+    public void ResetCounters()
+    {
+        wireCounter = 0;
+        ledCounter = 0;
+        sevenSegCounter = 0;
+        icCounter = 0;
+        dipSwitchCounter = 0;
+        resistorCounter = 0;
+    }
 }
