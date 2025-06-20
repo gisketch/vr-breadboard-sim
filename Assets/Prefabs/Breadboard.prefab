@@ -95,7 +95,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1539149780
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1083,8 +1083,8 @@ RectTransform:
   m_Children:
   - {fileID: 8563591019729101474}
   - {fileID: 4894245991237498512}
-  - {fileID: 7764139700989295199}
-  - {fileID: 5690939550588668207}
+  - {fileID: 7687708529981364761}
+  - {fileID: 5761720859185244521}
   m_Father: {fileID: 1993392515}
   m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -51463,7 +51463,7 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
-  - {fileID: 1957945052876468231}
+  - {fileID: 700035003455257191}
   m_Father: {fileID: 4105009496844006561}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -52292,7 +52292,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 31957ade0f49476488def7d1d47d5b21, type: 3}
---- !u!4 &1957945052876468231 stripped
+--- !u!4 &700035003455257191 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1340668090922649935, guid: 31957ade0f49476488def7d1d47d5b21,
     type: 3}
@@ -52652,7 +52652,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fcec3929eb11b34408c5487b04a6eab1, type: 3}
---- !u!224 &5690939550588668207 stripped
+--- !u!224 &5761720859185244521 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 76554350670834411, guid: fcec3929eb11b34408c5487b04a6eab1,
     type: 3}
@@ -52922,7 +52922,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fcec3929eb11b34408c5487b04a6eab1, type: 3}
---- !u!224 &7764139700989295199 stripped
+--- !u!224 &7687708529981364761 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 76554350670834411, guid: fcec3929eb11b34408c5487b04a6eab1,
     type: 3}

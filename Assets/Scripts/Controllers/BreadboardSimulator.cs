@@ -10,16 +10,24 @@ using UnityEngine.UI;
 
 public class BreadboardSimulator : MonoBehaviour
 {
-
     public GameObject warningText;
     public GameObject taskText;
+    public GameObject componentText;
 
     public static BreadboardSimulator Instance { get; private set; }
+
+    // Experiment management
+    private ExperimentDefinitions experimentDefinitions;
+    private ExperimentEvaluator experimentEvaluator;
 
     private void Awake()
     {
         Instance = this;
-        InitializeExperiments();
+        Debug.Log("BreadboardSimulator Awake called");
+        experimentDefinitions = new ExperimentDefinitions();
+        experimentEvaluator = new ExperimentEvaluator(experimentDefinitions);
+        Debug.Log($"Current experiment ID after initialization: {experimentDefinitions.CurrentExperimentId}");
+        Debug.Log($"Available experiments: {experimentDefinitions.GetExperiments().Count}");
     }
 
     public enum NodeState
@@ -148,7 +156,6 @@ public class BreadboardSimulator : MonoBehaviour
     // Main entry point that takes JSON state and returns simulation results
     public SimulationResult Run(string jsonState, BreadboardController bc)
     {
-
         // Debug the input JSON
         Debug.Log($"Running simulation with JSON: {jsonState}");
 
@@ -206,25 +213,41 @@ public class BreadboardSimulator : MonoBehaviour
             Errors = errors
         };
 
-        // Evaluate experiment
-        result.ExperimentResult = EvaluateExperiment(result, components);
+        // Evaluate experiment using the new experiment system
+        result.ExperimentResult = experimentEvaluator.EvaluateExperiment(result, components);
 
+        // UI Updates
+        UpdateUI(bc, result);
+
+        // Debug component states
+        foreach (var kvp in result.ComponentStates)
+        {
+            Debug.Log($"Component {kvp.Key}: {JsonConvert.SerializeObject(kvp.Value, Formatting.Indented)}");
+        }
+        return result;
+    }
+
+    private void UpdateUI(BreadboardController bc, SimulationResult result)
+    {
         //Clear messages first
         foreach (Transform child in bc.labMessagesTransform)
         {
             Destroy(child.gameObject);
         }
 
+        // Add component guide first
+        AddComponentGuide(bc);
+
         //Add main instruction
         GameObject taskMsg = Instantiate(taskText);
 
-        bool isCompleted = ((float)_completedInstructions[CurrentExperimentId].Count / _experiments[CurrentExperimentId].TotalInstructions) == 1f;
+        bool isCompleted = ((float)experimentDefinitions.GetCompletedInstructionsCount(experimentDefinitions.CurrentExperimentId) / experimentDefinitions.GetTotalInstructionsCount(experimentDefinitions.CurrentExperimentId)) == 1f;
 
         taskMsg.transform.SetParent(bc.labMessagesTransform);
         taskMsg.transform.localScale = Vector3.one;
         taskMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         taskMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
-        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {CurrentExperimentId} Completed!" : _experiments[CurrentExperimentId].InstructionDescriptions[CurrentInstructionIndex];
+        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {experimentDefinitions.CurrentExperimentId} Completed!" : result.ExperimentResult.MainInstruction;
 
         //Append messages
         foreach (string msg in result.ExperimentResult.Messages)
@@ -241,7 +264,6 @@ public class BreadboardSimulator : MonoBehaviour
         TMP_Text experimentName = bc.transform.Find("Canvas").Find("ExperimentName").GetComponent<TMP_Text>();
         experimentName.text = result.ExperimentResult.ExperimentName;
 
-
         // Activate appropriate diagram based on current experiment
         Transform leftPanel = bc.transform.Find("Canvas").Find("LeftPanel");
         GameObject diagram7448 = leftPanel.Find("7448Diagram").gameObject;
@@ -254,7 +276,7 @@ public class BreadboardSimulator : MonoBehaviour
         diagram74148.SetActive(false);
 
         // Activate the appropriate diagram based on current experiment
-        switch (CurrentExperimentId)
+        switch (experimentDefinitions.CurrentExperimentId)
         {
             case 1: // IC 74138 Decoder experiment
                 diagram74138.SetActive(true);
@@ -273,7 +295,7 @@ public class BreadboardSimulator : MonoBehaviour
         float maxWidthSlider = 160f;
 
         // Calculate the target fill amount (0 to 1)
-        float targetFillAmount = (float)_completedInstructions[CurrentExperimentId].Count / _experiments[CurrentExperimentId].TotalInstructions;
+        float targetFillAmount = (float)experimentDefinitions.GetCompletedInstructionsCount(experimentDefinitions.CurrentExperimentId) / experimentDefinitions.GetTotalInstructionsCount(experimentDefinitions.CurrentExperimentId);
         float currentWidth = fillSlider.sizeDelta.x;
         float targetWidth = maxWidthSlider * targetFillAmount;
 
@@ -287,7 +309,7 @@ public class BreadboardSimulator : MonoBehaviour
 
         //Update slider text
         TMP_Text completionText = experimentName.transform.Find("Task Completion Text").GetComponent<TMP_Text>();
-        completionText.text = $"COMPLETED {_completedInstructions[CurrentExperimentId].Count}/{_experiments[CurrentExperimentId].TotalInstructions}";
+        completionText.text = $"COMPLETED {experimentDefinitions.GetCompletedInstructionsCount(experimentDefinitions.CurrentExperimentId)}/{experimentDefinitions.GetTotalInstructionsCount(experimentDefinitions.CurrentExperimentId)}";
 
         //Clear button events here
         Button prevExperiment = experimentName.transform.Find("PrevExperiment").GetComponent<Button>();
@@ -298,32 +320,53 @@ public class BreadboardSimulator : MonoBehaviour
 
         Debug.Log($"Updating score from simulator");
         bc.CmdUpdateScore($@"Student {bc.studentId}
- - experiment 1 : {_completedInstructions[1].Count}/{_experiments[1].TotalInstructions}
- - experiment 2 : {_completedInstructions[2].Count}/{_experiments[2].TotalInstructions}
- - experiment 3 : {_completedInstructions[3].Count}/{_experiments[3].TotalInstructions}
-        ");
+ - experiment 1 : {experimentDefinitions.GetCompletedInstructionsCount(1)}/{experimentDefinitions.GetTotalInstructionsCount(1)}
+ - experiment 2 : {experimentDefinitions.GetCompletedInstructionsCount(2)}/{experimentDefinitions.GetTotalInstructionsCount(2)}
+ - experiment 3 : {experimentDefinitions.GetCompletedInstructionsCount(3)}/{experimentDefinitions.GetTotalInstructionsCount(3)}");
 
         //Add button events
         prevExperiment.onClick.AddListener(() =>
         {
-            PreviousExperiment();
+            experimentDefinitions.PreviousExperiment();
             BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
         });
 
         //Add button events
         nextExperiment.onClick.AddListener(() =>
         {
-            NextExperiment();
+            experimentDefinitions.NextExperiment();
             BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
         });
+    }
 
-        // Render experiment messages
-        foreach (var kvp in result.ComponentStates)
+    private void AddComponentGuide(BreadboardController bc)
+    {
+        GameObject componentMsg = Instantiate(componentText);
+        componentMsg.transform.SetParent(bc.labMessagesTransform);
+        componentMsg.transform.localScale = Vector3.one;
+        componentMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+        componentMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
+
+        string componentGuideText = GetComponentGuideText(experimentDefinitions.CurrentExperimentId);
+        componentMsg.transform.Find("Message").GetComponent<TMP_Text>().text = componentGuideText;
+    }
+
+    private string GetComponentGuideText(int experimentId)
+    {
+        switch (experimentId)
         {
-            Debug.Log($"Component {kvp.Key}: {Newtonsoft.Json.JsonConvert.SerializeObject(kvp.Value, Newtonsoft.Json.Formatting.Indented)}");
-        }
-        return result;
+            case 1: // IC 74138 Decoder
+                return "Required Components:\n- 3 DIP Switches\n- 8 LEDs\n- 1 IC 74138";
 
+            case 2: // BCD to 7-Segment Display
+                return "Required Components:\n- 4 DIP Switches\n- 1 7-Segment Display\n- 1 IC 7448";
+
+            case 3: // IC 74148 Encoder
+                return "Required Components:\n- 8 DIP Switches\n- 3 LEDs\n- 1 IC 74148";
+
+            default:
+                return "Required Components:\n- Unknown experiment";
+        }
     }
 
     // Build the graph representation of the breadboard
@@ -583,75 +626,26 @@ public class BreadboardSimulator : MonoBehaviour
                 }
             }
         }
-
-        // Also track other components in nets
-        foreach (JProperty componentProp in components)
-        {
-            string componentKey = componentProp.Name;
-            JToken componentValue = componentProp.Value;
-
-            if (componentKey.StartsWith("resistor"))
-            {
-                // Resistors are already tracked above
-                continue;
-            }
-
-            // For each pin in the component
-            foreach (JProperty property in componentValue.Children<JProperty>())
-            {
-                if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
-                {
-                    string node = property.Value.ToString();
-                    if (!string.IsNullOrEmpty(node))
-                    {
-                        // Find which net this node belongs to
-                        foreach (var net in nets)
-                        {
-                            if (net.Nodes.Contains(node))
-                            {
-                                net.AddSourceComponent(componentKey);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
-    // Detect electrical errors like short circuits
+    // Detect electrical errors in the circuit
     private List<BreadboardError> DetectErrors(List<Net> nets)
     {
         var errors = new List<BreadboardError>();
 
         foreach (var net in nets)
         {
-            // Detect short circuits (PWR connected to GND)
-            bool hasPwr = net.Nodes.Any(n => n.Contains("PWR"));
-            bool hasGnd = net.Nodes.Any(n => n.Contains("GND"));
+            // Check for short circuits (PWR and GND in same net)
+            bool hasPower = net.Nodes.Any(n => n.Contains("PWR"));
+            bool hasGround = net.Nodes.Any(n => n.Contains("GND"));
 
-            if (hasPwr && hasGnd)
+            if (hasPower && hasGround)
             {
                 errors.Add(new BreadboardError
                 {
                     ErrorType = "ShortCircuit",
-                    Description = "Power rail connected to ground rail",
-                    AffectedNodes = net.Nodes.Where(n => n.Contains("PWR") || n.Contains("GND")).ToList()
-                });
-
-                // In case of short circuit, set to LOW (GND dominates for safety)
-                net.State = NodeState.LOW;
-            }
-
-            // Detect multiple drivers conflict
-            if (net.Source == PowerSource.RAIL && net.SourceComponent != null)
-            {
-                errors.Add(new BreadboardError
-                {
-                    ErrorType = "MultipleDrivers",
-                    Description = "Both power rail and IC driving the same net",
-                    AffectedNodes = net.Nodes,
-                    InvolvedComponents = new List<string> { net.SourceComponent }
+                    Description = "Power and ground are directly connected",
+                    AffectedNodes = net.Nodes.ToList()
                 });
             }
         }
@@ -659,7 +653,7 @@ public class BreadboardSimulator : MonoBehaviour
         return errors;
     }
 
-    // Build a mapping from node names to net IDs
+    // Build a lookup map from node to net ID
     private Dictionary<string, int> BuildNodeToNetMap(List<Net> nets)
     {
         var nodeToNetMap = new Dictionary<string, int>();
@@ -675,14 +669,14 @@ public class BreadboardSimulator : MonoBehaviour
         return nodeToNetMap;
     }
 
-    // Get which nets a component's pins are connected to
+    // Get connected nets for a component
     private Dictionary<string, int> GetConnectedNets(JToken component, Dictionary<string, int> nodeToNetMap)
     {
         var connectedNets = new Dictionary<string, int>();
 
         foreach (JProperty property in component.Children<JProperty>())
         {
-            if (property.Name != "type" && property.Name != "color" && property.Name != "isOn" && property.Name != "ledId")
+            if (property.Name != "type" && property.Name != "color" && property.Name != "isOn")
             {
                 string node = property.Value.ToString();
                 if (!string.IsNullOrEmpty(node) && nodeToNetMap.ContainsKey(node))
@@ -695,8 +689,8 @@ public class BreadboardSimulator : MonoBehaviour
         return connectedNets;
     }
 
-    // Check if two nodes are electrically connected (in the same net)
-    public bool AreNodesConnected(string nodeA, string nodeB, List<Net> nets)
+    // Check if two nodes are electrically connected
+    private bool AreNodesConnected(string nodeA, string nodeB, List<Net> nets)
     {
         // Quick check - if nodes are identical, they're connected
         if (nodeA == nodeB)
@@ -999,20 +993,12 @@ public class BreadboardSimulator : MonoBehaviour
         bool hasGnd = connectedNets.ContainsKey("pin8") &&
                      nets[connectedNets["pin8"]].State == NodeState.LOW;
 
-        // If power connections aren't correct, the IC doesn't function
         if (!hasVcc || !hasGnd)
         {
-            return (false, new
-            {
-                type = icType,
-                hasGnd = hasGnd,
-                hasVcc = hasVcc,
-                status = "Inactive",
-                error = "Power connection issue",
-                details = $"IC requires proper power connections. Vcc (pin16): {hasVcc}, GND (pin8): {hasGnd}"
-            });
+            return (false, new { type = icType, error = "Missing power connections" });
         }
 
+        // Delegate to specific IC evaluation methods
         switch (icType)
         {
             case "IC7448":
@@ -1022,7 +1008,7 @@ public class BreadboardSimulator : MonoBehaviour
             case "IC74148":
                 return EvaluateIC74148(connectedNets, nets, componentId);
             default:
-                return (false, new { type = icType, status = "unknown" });
+                return (false, new { type = icType, error = "Unsupported IC type" });
         }
     }
 
@@ -1032,75 +1018,81 @@ public class BreadboardSimulator : MonoBehaviour
     {
         bool statesChanged = false;
 
-        // Check if BCD input pins are connected
-        if (!connectedNets.ContainsKey("pin7") ||  // A input
-            !connectedNets.ContainsKey("pin1") ||  // B input
-            !connectedNets.ContainsKey("pin2") ||  // C input
-            !connectedNets.ContainsKey("pin6"))    // D input
+        // Check if all required pins are connected
+        if (!connectedNets.ContainsKey("pin7") ||  // A
+            !connectedNets.ContainsKey("pin1") ||  // B
+            !connectedNets.ContainsKey("pin2") ||  // C
+            !connectedNets.ContainsKey("pin6"))   // D
         {
-            return (false, new { type = "IC7448", error = "Missing BCD input pins" });
+            return (false, new { type = "IC7448", error = "Missing input pins" });
         }
 
-        // Get lamp test, blanking and ripple blanking inputs
-        bool lt = !connectedNets.ContainsKey("pin3") || nets[connectedNets["pin3"]].State == NodeState.HIGH;
-        bool bi_rbo = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.HIGH;
-        bool rbi = !connectedNets.ContainsKey("pin5") || nets[connectedNets["pin5"]].State == NodeState.HIGH;
-
-        // Get BCD input values
+        // Get BCD inputs (A, B, C, D)
         bool inputA = nets[connectedNets["pin7"]].State == NodeState.HIGH;
         bool inputB = nets[connectedNets["pin1"]].State == NodeState.HIGH;
         bool inputC = nets[connectedNets["pin2"]].State == NodeState.HIGH;
         bool inputD = nets[connectedNets["pin6"]].State == NodeState.HIGH;
 
-        // Only proceed if inputs are initialized
-        if (nets[connectedNets["pin7"]].State == NodeState.UNINITIALIZED ||
-            nets[connectedNets["pin1"]].State == NodeState.UNINITIALIZED ||
-            nets[connectedNets["pin2"]].State == NodeState.UNINITIALIZED ||
-            nets[connectedNets["pin6"]].State == NodeState.UNINITIALIZED)
+        // Get control inputs (LT, BI/RBO, RBI)
+        bool lt = true;  // Default to HIGH (no lamp test)
+        bool bi_rbo = true;  // Default to HIGH (no blanking)
+        bool rbi = true;  // Default to HIGH (no ripple blanking)
+
+        if (connectedNets.ContainsKey("pin3"))
         {
-            return (false, new
-            {
-                type = "IC7448",
-                hasVcc = true,
-                hasGnd = true,
-                status = "Uninitialized inputs",
-                control = new { LT = lt, BI_RBO = bi_rbo, RBI = rbi },
-            });
+            lt = nets[connectedNets["pin3"]].State == NodeState.HIGH;
+        }
+        if (connectedNets.ContainsKey("pin5"))
+        {
+            bi_rbo = nets[connectedNets["pin5"]].State == NodeState.HIGH;
+        }
+        if (connectedNets.ContainsKey("pin4"))
+        {
+            rbi = nets[connectedNets["pin4"]].State == NodeState.HIGH;
         }
 
-        // Convert binary to decimal (0-15)
+        // Convert BCD to decimal
         int value = (inputD ? 8 : 0) + (inputC ? 4 : 0) + (inputB ? 2 : 0) + (inputA ? 1 : 0);
 
-        // Get the 7-segment output pattern for this value
-        var segments = Get7SegmentPattern(value);
-
-        // Apply blanking if needed
-        if (!lt || !bi_rbo || (value == 0 && !rbi))
+        // 7-segment patterns for digits 0-9 (active LOW outputs)
+        var segmentPatterns = new Dictionary<int, bool[]>
         {
-            // Blank the display (all segments off)
-            segments = new Dictionary<string, bool>
-            {
-                {"A", false}, {"B", false}, {"C", false},
-                {"D", false}, {"E", false}, {"F", false}, {"G", false}
-            };
-        }
-
-        // Map segments to IC pins
-        var pinMap = new Dictionary<string, string> {
-            {"A", "pin13"}, {"B", "pin12"}, {"C", "pin11"},
-            {"D", "pin10"}, {"E", "pin9"}, {"F", "pin15"}, {"G", "pin14"}
+            { 0, new bool[] { true, true, true, true, true, true, false } },   // 0
+            { 1, new bool[] { false, true, true, false, false, false, false } }, // 1
+            { 2, new bool[] { true, true, false, true, true, false, true } },   // 2
+            { 3, new bool[] { true, true, true, true, false, false, true } },   // 3
+            { 4, new bool[] { false, true, true, false, false, true, true } },  // 4
+            { 5, new bool[] { true, false, true, true, false, true, true } },   // 5
+            { 6, new bool[] { true, false, true, true, true, true, true } },    // 6
+            { 7, new bool[] { true, true, true, false, false, false, false } }, // 7
+            { 8, new bool[] { true, true, true, true, true, true, true } },     // 8
+            { 9, new bool[] { true, true, true, true, false, true, true } }     // 9
         };
 
-        // Update output pins
-        foreach (var kvp in pinMap)
-        {
-            string segment = kvp.Key;
-            string pin = kvp.Value;
+        // Get segment pattern
+        bool[] segments = value <= 9 ? segmentPatterns[value] : new bool[7]; // Blank for invalid BCD
 
-            if (connectedNets.ContainsKey(pin))
+        // Apply control logic
+        if (!lt) // Lamp test active (LOW)
+        {
+            segments = new bool[] { true, true, true, true, true, true, true }; // All segments on
+        }
+        else if (!bi_rbo) // Blanking active (LOW)
+        {
+            segments = new bool[] { false, false, false, false, false, false, false }; // All segments off
+        }
+
+        // Update output pins (active LOW, so invert the patterns)
+        var outputPins = new[] { "pin13", "pin12", "pin11", "pin10", "pin15", "pin14", "pin9" }; // a,b,c,d,e,f,g
+        for (int i = 0; i < outputPins.Length; i++)
+        {
+            if (connectedNets.ContainsKey(outputPins[i]))
             {
-                int netId = connectedNets[pin];
-                NodeState newState = segments[segment] ? NodeState.HIGH : NodeState.LOW;
+                int netId = connectedNets[outputPins[i]];
+                string segment = "abcdefg"[i].ToString();
+
+                // 7448 outputs are active LOW, so invert the segment state
+                NodeState newState = segments[i] ? NodeState.HIGH : NodeState.LOW;
 
                 // Only update if state changed
                 if (nets[netId].State != newState)
@@ -1145,44 +1137,40 @@ public class BreadboardSimulator : MonoBehaviour
         bool a1 = nets[connectedNets["pin2"]].State == NodeState.HIGH;
         bool a2 = nets[connectedNets["pin3"]].State == NodeState.HIGH;
 
-        // Get enable inputs (E1, E2, E3) with defaults
-        bool e1 = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.LOW;
-        bool e2 = !connectedNets.ContainsKey("pin5") || nets[connectedNets["pin5"]].State == NodeState.LOW;
-        bool e3 = connectedNets.ContainsKey("pin6") && nets[connectedNets["pin6"]].State == NodeState.HIGH;
+        // Get enable inputs (E1, E2, E3)
+        bool e1 = true;  // Default to HIGH (disabled)
+        bool e2 = true;  // Default to HIGH (disabled)
+        bool e3 = false; // Default to LOW (disabled)
 
-        // Calculate binary address (0-7)
-        int address = (a2 ? 4 : 0) + (a1 ? 2 : 0) + (a0 ? 1 : 0);
-
-        // Initialize all outputs as HIGH
-        var outputs = new Dictionary<string, bool>();
-        for (int i = 0; i < 8; i++)
+        if (connectedNets.ContainsKey("pin4")) // E1 (active LOW)
         {
-            outputs["O" + i] = false;
+            e1 = nets[connectedNets["pin4"]].State == NodeState.LOW;
+        }
+        if (connectedNets.ContainsKey("pin5")) // E2 (active LOW)
+        {
+            e2 = nets[connectedNets["pin5"]].State == NodeState.LOW;
+        }
+        if (connectedNets.ContainsKey("pin6")) // E3 (active HIGH)
+        {
+            e3 = nets[connectedNets["pin6"]].State == NodeState.HIGH;
         }
 
-        // Set active output if enabled (E1 high, E2 and E3 low)
+        // Check if decoder is enabled
         bool enabled = e1 && e2 && e3;
-        if (enabled)
+
+        // Calculate selected output (0-7)
+        int selectedOutput = (a2 ? 4 : 0) + (a1 ? 2 : 0) + (a0 ? 1 : 0);
+
+        // Update output pins (O0-O7, active LOW)
+        var outputPins = new[] { "pin15", "pin14", "pin13", "pin12", "pin11", "pin10", "pin9", "pin7" }; // O0-O7
+        for (int i = 0; i < outputPins.Length; i++)
         {
-            outputs["O" + address] = true;
-        }
-
-        // Output pin mapping
-        var outputPins = new Dictionary<string, string> {
-            {"O0", "pin15"}, {"O1", "pin14"}, {"O2", "pin13"}, {"O3", "pin12"},
-            {"O4", "pin11"}, {"O5", "pin10"}, {"O6", "pin9"}, {"O7", "pin7"}
-        };
-
-        // Update output pins
-        foreach (var kvp in outputPins)
-        {
-            string output = kvp.Key;
-            string pin = kvp.Value;
-
-            if (connectedNets.ContainsKey(pin))
+            if (connectedNets.ContainsKey(outputPins[i]))
             {
-                int netId = connectedNets[pin];
-                NodeState newState = outputs[output] ? NodeState.HIGH : NodeState.LOW;
+                int netId = connectedNets[outputPins[i]];
+
+                // Output is LOW only if enabled and this output is selected
+                NodeState newState = (enabled && i == selectedOutput) ? NodeState.LOW : NodeState.HIGH;
 
                 // Only update if state changed
                 if (nets[netId].State != newState)
@@ -1199,116 +1187,96 @@ public class BreadboardSimulator : MonoBehaviour
         {
             type = "IC74138",
             status = "Initialized",
-            hasGnd = true,
             hasVcc = true,
+            hasGnd = true,
             address = new { A0 = a0, A1 = a1, A2 = a2 },
             enable = new { E1 = e1, E2 = e2, E3 = e3 },
-            outputs = outputs,
-            enabled = enabled
+            enabled = enabled,
+            selectedOutput = selectedOutput
         });
     }
 
-    // Evaluate 74148 8-to-3 priority encoder IC
+    // Evaluate 74148 8-to-3 line encoder IC
     private (bool statesChanged, object state) EvaluateIC74148(
         Dictionary<string, int> connectedNets, List<Net> nets, string componentId)
     {
         bool statesChanged = false;
 
-        // Get enable input (EI) - active LOW
-        bool ei = !connectedNets.ContainsKey("pin5") ||
-                  nets[connectedNets["pin5"]].State == NodeState.LOW;
-
-        // Initialize inputs array (all HIGH/inactive by default)
-        bool[] inputs = new bool[8];
-        for (int i = 0; i < 8; i++)
+        // Check enable input (EI - pin 5, active LOW)
+        bool enableIn = true; // Default to HIGH (disabled)
+        if (connectedNets.ContainsKey("pin5"))
         {
-            inputs[i] = true;  // Default to inactive (HIGH)
+            enableIn = nets[connectedNets["pin5"]].State == NodeState.LOW;
         }
 
-        // Get input states (active LOW)
-        // Input 0 (pin 10)
-        if (connectedNets.ContainsKey("pin10"))
-            inputs[0] = nets[connectedNets["pin10"]].State == NodeState.LOW;
+        if (!enableIn)
+        {
+            return (false, new { type = "IC74148", status = "Disabled - EI not active" });
+        }
 
-        // Input 1 (pin 11)
-        if (connectedNets.ContainsKey("pin11"))
-            inputs[1] = nets[connectedNets["pin11"]].State == NodeState.LOW;
+        // Check input pins (I0-I7, active LOW)
+        var inputPins = new[] { "pin10", "pin11", "pin12", "pin13", "pin1", "pin2", "pin3", "pin4" }; // I0-I7
+        bool[] inputs = new bool[8];
+        bool hasValidInput = false;
 
-        // Input 2 (pin 12)
-        if (connectedNets.ContainsKey("pin12"))
-            inputs[2] = nets[connectedNets["pin12"]].State == NodeState.LOW;
+        for (int i = 0; i < inputPins.Length; i++)
+        {
+            if (connectedNets.ContainsKey(inputPins[i]))
+            {
+                inputs[i] = nets[connectedNets[inputPins[i]]].State == NodeState.LOW; // Active LOW
+                if (inputs[i]) hasValidInput = true;
+            }
+        }
 
-        // Input 3 (pin 13)
-        if (connectedNets.ContainsKey("pin13"))
-            inputs[3] = nets[connectedNets["pin13"]].State == NodeState.LOW;
+        if (!hasValidInput)
+        {
+            return (false, new { type = "IC74148", status = "Uninitialized inputs" });
+        }
 
-        // Input 4 (pin 1)
-        if (connectedNets.ContainsKey("pin1"))
-            inputs[4] = nets[connectedNets["pin1"]].State == NodeState.LOW;
-
-        // Input 5 (pin 2)
-        if (connectedNets.ContainsKey("pin2"))
-            inputs[5] = nets[connectedNets["pin2"]].State == NodeState.LOW;
-
-        // Input 6 (pin 3)
-        if (connectedNets.ContainsKey("pin3"))
-            inputs[6] = nets[connectedNets["pin3"]].State == NodeState.LOW;
-
-        // Input 7 (pin 4)
-        if (connectedNets.ContainsKey("pin4"))
-            inputs[7] = nets[connectedNets["pin4"]].State == NodeState.LOW;
-
-        // Find highest priority active input (7 is highest, 0 is lowest)
-        int highestActive = -1;
+        // Find highest priority input (I7 has highest priority)
+        int highestPriority = -1;
         for (int i = 7; i >= 0; i--)
         {
-            if (!inputs[i])  // Active LOW, so !input means active
+            if (inputs[i])
             {
-                highestActive = i;
+                highestPriority = i;
                 break;
             }
         }
 
-        // Calculate outputs (all active LOW)
-        bool a0, a1, a2, gs, e0;
+        // Generate outputs
+        bool a0 = false, a1 = false, a2 = false;
+        bool gs = false; // Group Select (active LOW when any input is active)
+        bool e0 = true;  // Enable Output (active LOW when enabled and any input active)
 
-        // If EI is inactive (HIGH) or no input is active
-        if (!ei || highestActive == -1)
+        if (highestPriority >= 0)
         {
-            a0 = a1 = a2 = false;
-            gs = true;
-            e0 = false;
+            // Convert priority to binary (inverted for 74148)
+            a0 = (highestPriority & 1) == 0;  // Inverted
+            a1 = (highestPriority & 2) == 0;  // Inverted
+            a2 = (highestPriority & 4) == 0;  // Inverted
+            gs = true;  // Active LOW, so true means LOW output
+            e0 = true;  // Active LOW, so true means LOW output
         }
-        else
-        {
-            // Encode priority input to binary (complement of bits)
-            a0 = (highestActive & 1) != 0;  // Bit 0
-            a1 = (highestActive & 2) != 0;  // Bit 1
-            a2 = (highestActive & 4) != 0;  // Bit 2
-            gs = false;                     // GS LOW (active)
-            e0 = true;                      // E0 HIGH (inactive)
-        }
-
-        // Output pins
-        var outputs = new Dictionary<string, (string pin, bool value)>
-        {
-            {"A0", ("pin9", a0)},
-            {"A1", ("pin7", a1)},
-            {"A2", ("pin6", a2)},
-            {"GS", ("pin14", gs)},
-            {"E0", ("pin15", e0)}
-        };
 
         // Update output pins
-        foreach (var kvp in outputs)
+        var outputPins = new Dictionary<string, bool>
         {
-            string pinName = kvp.Value.pin;
-            bool outputValue = kvp.Value.value;
+            { "pin6", a2 },  // A2
+            { "pin7", a1 },  // A1
+            { "pin9", a0 },  // A0
+            { "pin14", gs }, // GS
+            { "pin15", e0 }  // EO
+        };
 
-            if (connectedNets.ContainsKey(pinName))
+        foreach (var output in outputPins)
+        {
+            if (connectedNets.ContainsKey(output.Key))
             {
-                int netId = connectedNets[pinName];
-                NodeState newState = outputValue ? NodeState.HIGH : NodeState.LOW;
+                int netId = connectedNets[output.Key];
+
+                // Outputs are active LOW
+                NodeState newState = output.Value ? NodeState.LOW : NodeState.HIGH;
 
                 // Only update if state changed
                 if (nets[netId].State != newState)
@@ -1324,1786 +1292,13 @@ public class BreadboardSimulator : MonoBehaviour
         return (statesChanged, new
         {
             type = "IC74148",
+            status = "Initialized",
             hasVcc = true,
             hasGnd = true,
-            inputsState = inputs,
-            enableIn = ei,
-            highestPriority = highestActive,
-            outputs = new { A0 = a0, A1 = a1, A2 = a2, GS = gs, E0 = e0 }
+            enableIn = enableIn,
+            inputs = inputs,
+            outputs = new { A0 = a0, A1 = a1, A2 = a2, GS = gs, E0 = e0 },
+            highestPriority = highestPriority
         });
     }
-
-    // Get 7-segment pattern for a given value (0-15)
-    private Dictionary<string, bool> Get7SegmentPattern(int value)
-    {
-        // Patterns for 0-9 and A-F
-        string[][] patterns = new string[][] {
-            // 0-9
-            new string[] {"A", "B", "C", "D", "E", "F"},      // 0
-            new string[] {"B", "C"},                          // 1
-            new string[] {"A", "B", "D", "E", "G"},           // 2
-            new string[] {"A", "B", "C", "D", "G"},           // 3
-            new string[] {"B", "C", "F", "G"},                // 4
-            new string[] {"A", "C", "D", "F", "G"},           // 5
-            new string[] {"A", "C", "D", "E", "F", "G"},      // 6
-            new string[] {"A", "B", "C"},                     // 7
-            new string[] {"A", "B", "C", "D", "E", "F", "G"}, // 8
-            new string[] {"A", "B", "C", "D", "F", "G"},      // 9
-            // A-F
-            new string[] {"A", "B", "C", "E", "F", "G"},      // A
-            new string[] {"C", "D", "E", "F", "G"},           // b
-            new string[] {"A", "D", "E", "F"},                // C
-            new string[] {"B", "C", "D", "E", "G"},           // d
-            new string[] {"A", "D", "E", "F", "G"},           // E
-            new string[] {"A", "E", "F", "G"}                 // F
-        };
-
-        // Ensure value is in range
-        value = Math.Max(0, Math.Min(15, value));
-
-        // Build the pattern
-        var result = new Dictionary<string, bool>
-        {
-            {"A", false}, {"B", false}, {"C", false},
-            {"D", false}, {"E", false}, {"F", false}, {"G", false}
-        };
-
-        foreach (string segment in patterns[value])
-        {
-            result[segment] = true;
-        }
-
-        return result;
-    }
-
-    // Current experiment state
-    public int CurrentExperimentId { get; set; } = 1;
-    public int CurrentInstructionIndex { get; set; } = 0;
-
-    // Track completed instructions
-    private Dictionary<int, HashSet<int>> _completedInstructions = new Dictionary<int, HashSet<int>>();
-
-    // Experiment definitions
-    private Dictionary<int, ExperimentDefinition> _experiments;
-
-    private void InitializeExperiments()
-    {
-        _experiments = new Dictionary<int, ExperimentDefinition>();
-
-        // Decoder experiment (Experiment 1)
-        var decoderExperiment = new ExperimentDefinition
-        {
-            Id = 1,
-            Name = "IC 74138 Decoder",
-            Description = "Lol",
-            TotalInstructions = 35
-        };
-
-        // Detailed step-by-step instructions for IC 74138
-        decoderExperiment.InstructionDescriptions[0] = "Add a resistor and connect it to any power terminal";
-        decoderExperiment.InstructionDescriptions[1] = "Add a switch and connect it in series with the resistor (note: dedicate a node between resistor and switch - this will act as input 1)";
-        decoderExperiment.InstructionDescriptions[2] = "Ground the switch";
-        decoderExperiment.InstructionDescriptions[3] = "Add a second resistor and connect it to any power terminal";
-        decoderExperiment.InstructionDescriptions[4] = "Add a second switch and connect it in series with the second resistor (note: dedicate a node between resistor and switch - this will act as input 2)";
-        decoderExperiment.InstructionDescriptions[5] = "Ground the second switch";
-        decoderExperiment.InstructionDescriptions[6] = "Add a third resistor and connect it to any power terminal";
-        decoderExperiment.InstructionDescriptions[7] = "Add a third switch and connect it in series with the third resistor (note: dedicate a node between resistor and switch - this will act as input 3)";
-        decoderExperiment.InstructionDescriptions[8] = "Ground the third switch";
-        decoderExperiment.InstructionDescriptions[9] = "Ground IC74138 to Ground Breadboard";
-        decoderExperiment.InstructionDescriptions[10] = "VCC IC74138 to VCC Breadboard";
-        decoderExperiment.InstructionDescriptions[11] = "IC74138 A0 to input 1 from pull-up resistor input";
-        decoderExperiment.InstructionDescriptions[12] = "IC74138 A1 to input 2 from pull-up resistor input";
-        decoderExperiment.InstructionDescriptions[13] = "IC74138 A2 to input 3 from pull-up resistor input";
-        decoderExperiment.InstructionDescriptions[14] = "E1 set to LOW";
-        decoderExperiment.InstructionDescriptions[15] = "E2 set to LOW";
-        decoderExperiment.InstructionDescriptions[16] = "E3 set to HIGH";
-        decoderExperiment.InstructionDescriptions[17] = "Add 8 LEDs";
-        decoderExperiment.InstructionDescriptions[18] = "Connect LEDs cathode to ground";
-        decoderExperiment.InstructionDescriptions[19] = "Connect O0 to a LED";
-        decoderExperiment.InstructionDescriptions[20] = "Connect O1 to a LED";
-        decoderExperiment.InstructionDescriptions[21] = "Connect O2 to a LED";
-        decoderExperiment.InstructionDescriptions[22] = "Connect O3 to a LED";
-        decoderExperiment.InstructionDescriptions[23] = "Connect O4 to a LED";
-        decoderExperiment.InstructionDescriptions[24] = "Connect O5 to a LED";
-        decoderExperiment.InstructionDescriptions[25] = "Connect O6 to a LED";
-        decoderExperiment.InstructionDescriptions[26] = "Connect O7 to a LED";
-        decoderExperiment.InstructionDescriptions[27] = "Set inputs to 000 (A2=0, A1=0, A0=0)";
-        decoderExperiment.InstructionDescriptions[28] = "Set inputs to 001 (A2=0, A1=0, A0=1)";
-        decoderExperiment.InstructionDescriptions[29] = "Set inputs to 010 (A2=0, A1=1, A0=0)";
-        decoderExperiment.InstructionDescriptions[30] = "Set inputs to 011 (A2=0, A1=1, A0=1)";
-        decoderExperiment.InstructionDescriptions[31] = "Set inputs to 100 (A2=1, A1=0, A0=0)";
-        decoderExperiment.InstructionDescriptions[32] = "Set inputs to 101 (A2=1, A1=0, A0=1)";
-        decoderExperiment.InstructionDescriptions[33] = "Set inputs to 110 (A2=1, A1=1, A0=0)";
-        decoderExperiment.InstructionDescriptions[34] = "Set inputs to 111 (A2=1, A1=1, A0=1)";
-
-        _experiments[decoderExperiment.Id] = decoderExperiment;
-        _completedInstructions[decoderExperiment.Id] = new HashSet<int>();
-
-        _experiments[decoderExperiment.Id] = decoderExperiment;
-        _completedInstructions[decoderExperiment.Id] = new HashSet<int>();
-
-
-        // BCD to 7-Segment experiment (Experiment 2)
-        var bcdExperiment = new ExperimentDefinition
-        {
-            Id = 2,
-            Name = "BCD to 7-Segment Display",
-            Description = "Connect DIP switches to a 7448 IC to display decimal digits on a 7-segment display.",
-            TotalInstructions = 39
-        };
-
-        // Detailed step-by-step instructions for BCD to 7-Segment
-        bcdExperiment.InstructionDescriptions[0] = "Add a resistor and connect it to any power terminal";
-        bcdExperiment.InstructionDescriptions[1] = "Add a switch and connect it in series with the resistor (note: dedicate a node between resistor and switch - this will act as input 1)";
-        bcdExperiment.InstructionDescriptions[2] = "Ground the switch";
-        bcdExperiment.InstructionDescriptions[3] = "Add a second resistor and connect it to any power terminal";
-        bcdExperiment.InstructionDescriptions[4] = "Add a second switch and connect it in series with the second resistor (note: dedicate a node between resistor and switch - this will act as input 2)";
-        bcdExperiment.InstructionDescriptions[5] = "Ground the second switch";
-        bcdExperiment.InstructionDescriptions[6] = "Add a third resistor and connect it to any power terminal";
-        bcdExperiment.InstructionDescriptions[7] = "Add a third switch and connect it in series with the third resistor (note: dedicate a node between resistor and switch - this will act as input 3)";
-        bcdExperiment.InstructionDescriptions[8] = "Ground the third switch";
-        bcdExperiment.InstructionDescriptions[9] = "Add a fourth resistor and connect it to any power terminal";
-        bcdExperiment.InstructionDescriptions[10] = "Add a fourth switch and connect it in series with the fourth resistor (note: dedicate a node between resistor and switch - this will act as input 4)";
-        bcdExperiment.InstructionDescriptions[11] = "Ground the fourth switch";
-        bcdExperiment.InstructionDescriptions[12] = "Ground IC7448 to Ground Breadboard";
-        bcdExperiment.InstructionDescriptions[13] = "VCC IC7448 to VCC Breadboard";
-        bcdExperiment.InstructionDescriptions[14] = "IC7448 A to input 1 from pull-up resistor input";
-        bcdExperiment.InstructionDescriptions[15] = "IC7448 B to input 2 from pull-up resistor input";
-        bcdExperiment.InstructionDescriptions[16] = "IC7448 C to input 3 from pull-up resistor input";
-        bcdExperiment.InstructionDescriptions[17] = "IC7448 D to input 4 from pull-up resistor input";
-        bcdExperiment.InstructionDescriptions[18] = "IC7448 LT set to HIGH";
-        bcdExperiment.InstructionDescriptions[19] = "IC7448 RBO set to HIGH";
-        bcdExperiment.InstructionDescriptions[20] = "IC7448 RBI set to HIGH";
-        bcdExperiment.InstructionDescriptions[21] = "IC7448 f PIN to 7-Segment f PIN";
-        bcdExperiment.InstructionDescriptions[22] = "IC7448 g PIN to 7-Segment g PIN";
-        bcdExperiment.InstructionDescriptions[23] = "IC7448 a PIN to 7-Segment a PIN";
-        bcdExperiment.InstructionDescriptions[24] = "IC7448 b PIN to 7-Segment b PIN";
-        bcdExperiment.InstructionDescriptions[25] = "IC7448 c PIN to 7-Segment c PIN";
-        bcdExperiment.InstructionDescriptions[26] = "IC7448 d PIN to 7-Segment d PIN";
-        bcdExperiment.InstructionDescriptions[27] = "IC7448 e PIN to 7-Segment e PIN";
-        bcdExperiment.InstructionDescriptions[28] = "Set inputs to 0000 to display 0";
-        bcdExperiment.InstructionDescriptions[29] = "Set inputs to 0001 to display 1";
-        bcdExperiment.InstructionDescriptions[30] = "Set inputs to 0010 to display 2";
-        bcdExperiment.InstructionDescriptions[31] = "Set inputs to 0011 to display 3";
-        bcdExperiment.InstructionDescriptions[32] = "Set inputs to 0100 to display 4";
-        bcdExperiment.InstructionDescriptions[33] = "Set inputs to 0101 to display 5";
-        bcdExperiment.InstructionDescriptions[34] = "Set inputs to 0110 to display 6";
-        bcdExperiment.InstructionDescriptions[35] = "Set inputs to 0111 to display 7";
-        bcdExperiment.InstructionDescriptions[36] = "Set inputs to 1000 to display 8";
-        bcdExperiment.InstructionDescriptions[37] = "Set inputs to 1001 to display 9";
-        bcdExperiment.InstructionDescriptions[38] = "Set inputs to 1010 to display a";
-
-        _experiments[bcdExperiment.Id] = bcdExperiment;
-        _completedInstructions[bcdExperiment.Id] = new HashSet<int>();
-
-        // Encoder Experiment (Experiment 3)
-        var encoderExperiment = new ExperimentDefinition
-        {
-            Id = 3,
-            Name = "IC 74148 Encoder",
-            Description = "Lmao",
-            TotalInstructions = 8
-        };
-
-        // Add instructions for each input test
-        encoderExperiment.InstructionDescriptions[0] = "Turn on all inputs (A0-A7)";
-        encoderExperiment.InstructionDescriptions[1] = "Turn off only input A1, keep others on";
-        encoderExperiment.InstructionDescriptions[2] = "Turn off only input A2, keep others on";
-        encoderExperiment.InstructionDescriptions[3] = "Turn off only input A3, keep others on";
-        encoderExperiment.InstructionDescriptions[4] = "Turn off only input A4, keep others on";
-        encoderExperiment.InstructionDescriptions[5] = "Turn off only input A5, keep others on";
-        encoderExperiment.InstructionDescriptions[6] = "Turn off only input A6, keep others on";
-        encoderExperiment.InstructionDescriptions[7] = "Turn off only input A7, keep others on";
-
-        _experiments[encoderExperiment.Id] = encoderExperiment;
-        _completedInstructions[encoderExperiment.Id] = new HashSet<int>();
-    }
-
-    public ExperimentDefinition GetCurrentExperiment()
-    {
-        return _experiments.TryGetValue(CurrentExperimentId, out var experiment) ? experiment : null;
-    }
-
-    // Dictionary to store the last instruction index for each experiment
-    private Dictionary<int, int> _lastInstructionIndices = new Dictionary<int, int>();
-
-    public void NextExperiment()
-    {
-        // Save current instruction index for the current experiment
-        _lastInstructionIndices[CurrentExperimentId] = CurrentInstructionIndex;
-
-        // Find the next valid experiment ID
-        int nextExperimentId = CurrentExperimentId + 1;
-        while (nextExperimentId <= _experiments.Keys.Max() && !_experiments.ContainsKey(nextExperimentId))
-        {
-            nextExperimentId++;
-        }
-
-        // If we found a valid next experiment
-        if (_experiments.ContainsKey(nextExperimentId))
-        {
-            CurrentExperimentId = nextExperimentId;
-
-            // Restore the last instruction index for this experiment, or default to 0
-            CurrentInstructionIndex = _lastInstructionIndices.ContainsKey(CurrentExperimentId)
-                ? _lastInstructionIndices[CurrentExperimentId]
-                : 0;
-        }
-    }
-
-    public void PreviousExperiment()
-    {
-        // Save current instruction index for the current experiment
-        _lastInstructionIndices[CurrentExperimentId] = CurrentInstructionIndex;
-
-        // Find the previous valid experiment ID
-        int prevExperimentId = CurrentExperimentId - 1;
-        while (prevExperimentId >= _experiments.Keys.Min() && !_experiments.ContainsKey(prevExperimentId))
-        {
-            prevExperimentId--;
-        }
-
-        // If we found a valid previous experiment
-        if (_experiments.ContainsKey(prevExperimentId))
-        {
-            CurrentExperimentId = prevExperimentId;
-
-            // Restore the last instruction index for this experiment, or default to 0
-            CurrentInstructionIndex = _lastInstructionIndices.ContainsKey(CurrentExperimentId)
-                ? _lastInstructionIndices[CurrentExperimentId]
-                : 0;
-        }
-    }
-
-    public void NextInstruction()
-    {
-        var experiment = GetCurrentExperiment();
-        if (experiment != null && CurrentInstructionIndex < experiment.TotalInstructions - 1)
-        {
-            CurrentInstructionIndex++;
-        }
-    }
-
-    public void PreviousInstruction()
-    {
-        if (CurrentInstructionIndex > 0)
-        {
-            CurrentInstructionIndex--;
-        }
-    }
-
-    public ExperimentResult EvaluateExperiment(SimulationResult simResult, JToken components)
-    {
-        var experiment = GetCurrentExperiment();
-        if (experiment == null)
-        {
-            return new ExperimentResult
-            {
-                ExperimentId = CurrentExperimentId,
-                Messages = new List<string> { $"Unknown experiment ID: {CurrentExperimentId}" },
-                MainInstruction = "Error: Invalid experiment selected",
-                IsSetupValid = false
-            };
-        }
-
-        switch (CurrentExperimentId)
-        {
-            case 1:
-                return Evaluate74138To8LED(simResult, experiment, components);
-            case 2:
-                return EvaluateBCDTo7SegmentExperiment(simResult, experiment, components);
-            case 3:
-                return Evaluate74148To3LED(simResult, experiment, components);
-            default:
-                return new ExperimentResult
-                {
-                    ExperimentId = CurrentExperimentId,
-                    Messages = new List<string> { $"No evaluation implemented for experiment {CurrentExperimentId}" },
-                    MainInstruction = "Error: Experiment not implemented",
-                    IsSetupValid = false
-                };
-        }
-    }
-
-    private ExperimentResult Evaluate74148To3LED(
-    SimulationResult simResult,
-    ExperimentDefinition experiment,
-    JToken components)
-    {
-        var result = new ExperimentResult
-        {
-            ExperimentName = experiment.Name,
-            ExperimentId = experiment.Id,
-            TotalInstructions = experiment.TotalInstructions,
-            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
-            InstructionResults = new Dictionary<int, bool>(),
-            Messages = new List<string>(),
-            IsSetupValid = true
-        };
-
-        // Count components and validate types
-        int ic74148Count = 0;
-        int ledCount = 0;
-        int dipSwitchCount = 0;
-
-        string mainIc = "";
-        List<string> mainLeds = new List<string>();
-
-        // Get component data
-        dynamic ic74148State = null;
-        List<dynamic> ledStates = new List<dynamic>();
-
-        foreach (var comp in simResult.ComponentStates)
-        {
-            if (comp.Key.StartsWith("ic"))
-            {
-                dynamic dynamicValue = comp.Value;
-                string typeValue = dynamicValue.type;
-
-                if (typeValue == "IC74148")
-                {
-                    ic74148Count++;
-                    ic74148State = dynamicValue;
-                    mainIc = comp.Key;
-                }
-            }
-            else if (comp.Key.StartsWith("led"))
-            {
-                dynamic dynamicValue = comp.Value;
-                ledCount++;
-                mainLeds.Add(comp.Key);
-                ledStates.Add(comp.Value);
-            }
-            else if (comp.Key.StartsWith("dipSwitch"))
-            {
-                dipSwitchCount++;
-            }
-        }
-
-        // Validate component counts
-        if (ic74148Count != 1)
-        {
-            result.Messages.Add($"Expected exactly 1 IC 74148, found {ic74148Count}");
-            result.IsSetupValid = false;
-        }
-
-        if (ledCount < 3)
-        {
-            result.Messages.Add($"Expected at least 3 LEDs, found {ledCount}");
-            result.IsSetupValid = false;
-        }
-
-        if (dipSwitchCount < 8)
-        {
-            result.Messages.Add($"Expected at least 8 DIP switches, found {dipSwitchCount}");
-            result.IsSetupValid = false;
-        }
-
-        // Only proceed with detailed checks if basic components are present
-        if (ic74148State != null && ledCount > 2 && dipSwitchCount > 7)
-        {
-
-            // Check IC 74148 control pins (ei, gs, e0)
-            bool eiActive = false;
-            bool gsActive = false;
-            bool e0Active = false;
-
-            try
-            {
-                eiActive = ic74148State.enableIn;
-                gsActive = ic74148State.outputs.GS;
-                e0Active = ic74148State.outputs.E0;
-            }
-            catch (Exception)
-            {
-                result.Messages.Add("Cannot access IC 74148 enable pins");
-                result.IsSetupValid = false;
-            }
-
-            // Add individual messages for each enable pin
-            if (!eiActive)
-            {
-                result.Messages.Add("IC 74148 EI pin must be set to LOW");
-                result.IsSetupValid = false;
-            }
-
-            // Check if all LEDs are grounded
-            bool ledsGrounded = true;
-            foreach (dynamic ledState in ledStates)
-            {
-                if (!ledState.grounded)
-                {
-                    ledsGrounded = false;
-                    break;
-                }
-            }
-
-
-            if (!ledsGrounded)
-            {
-                result.Messages.Add("LEDS are not properly grounded");
-                result.IsSetupValid = false;
-            }
-
-            // Check if IC has uninitialized inputs
-            string status = "";
-            try
-            {
-                status = ic74148State.status;
-
-                if (status == "Uninitialized inputs")
-                {
-                    result.Messages.Add("IC 74148 has uninitialized inputs. Check DIP switch connections.");
-                    result.IsSetupValid = false;
-                }
-            }
-            catch (Exception)
-            {
-                Debug.Log("No status");
-            }
-
-            // Extract ic
-            JToken icComp = null;
-            List<JToken> ledComps = new List<JToken>();
-            List<JToken> ledsConnectedToIc = new List<JToken>();
-
-            foreach (JProperty componentProp in components)
-            {
-                if (componentProp.Name.Equals(mainIc))
-                {
-                    icComp = componentProp.Value;
-                }
-                else if (componentProp.Name.StartsWith("led"))
-                {
-                    ledComps.Add(componentProp.Value);
-                }
-            }
-
-            // Check if required components are found
-            if (icComp == null)
-            {
-                result.Messages.Add("Missing IC");
-                result.IsSetupValid = false;
-            }
-
-            string[] outputPins = new string[] {
-                "pin6", "pin7", "pin9"
-            };
-
-            // Check all required connections
-            bool allConnected = true;
-
-            foreach (string pin in outputPins)
-            {
-                foreach (JToken ledComp in ledComps)
-                {
-                    string pinValue = icComp[pin]?.ToString();
-                    string anodeValue = ledComp["anode"]?.ToString();
-
-                    bool isConnected = AreNodesConnected(pinValue, anodeValue, simResult.Nets);
-                    if (isConnected)
-                    {
-                        ledsConnectedToIc.Add(ledComp["ledId"]?.ToString());
-                    }
-                }
-            }
-
-            if (ledsConnectedToIc.Count != 3) allConnected = false;
-
-            if (!allConnected)
-            {
-                result.Messages.Add("IC74148 outputs are not properly connected to LEDs.");
-                result.IsSetupValid = false;
-            }
-        }
-
-        // Only evaluate the experiment if the setup is valid
-        if (result.IsSetupValid)
-        {
-            bool[] inputsState = ic74148State.inputsState;
-            int iState = 1;
-
-            foreach (bool state in inputsState)
-            {
-                Debug.Log($"{iState}: {state}");
-                iState++;
-            }
-
-            int expectedValue = -1;
-
-            for (int i = 7; i >= 0; i--)
-            {
-                if (inputsState[i])  // Active LOW, so input means active
-                {
-                    expectedValue = i;
-                    break;
-                }
-            }
-            bool[] expectedBits = new bool[3];
-            for (int i = 0; i < 3; i++)
-            {
-                expectedBits[i] = ((expectedValue >> i) & 1) == 1; // converts the highest priority into its 3-bit binary rep.
-            }
-
-
-            // Get actual IC inputs
-            int highestPriority = -1;
-            try
-            {
-                highestPriority = ic74148State.highestPriority;
-            }
-            catch (Exception)
-            {
-                result.Messages.Add("Cannot evaluate: IC inputs not found in simulation result");
-                result.InstructionResults[CurrentInstructionIndex] = false;
-                return result;
-            }
-
-            // // Compare expected and actual inputs
-            // bool[] actualBits = new bool[3];
-            bool allMatch = false;
-
-            Debug.Log($"highestPriority: {highestPriority}, CurrentInstructionIndex: {CurrentInstructionIndex}");
-            if (CurrentInstructionIndex == 0 && highestPriority == -1) allMatch = true;
-            if (CurrentInstructionIndex == highestPriority && CurrentExperimentId != 0) allMatch = true;
-
-            result.InstructionResults[CurrentInstructionIndex] = allMatch;
-
-            if (allMatch)
-            {
-                Debug.Log("PASSED!!!");
-                // Mark instruction as completed
-                _completedInstructions[experiment.Id].Add(CurrentInstructionIndex);
-                result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
-
-                NextInstruction();
-            }
-        }
-
-        return result;
-    }
-
-    private ExperimentResult EvaluateBCDTo7SegmentExperiment(
-    SimulationResult simResult,
-    ExperimentDefinition experiment,
-    JToken components)
-    {
-        var result = new ExperimentResult
-        {
-            ExperimentName = experiment.Name,
-            ExperimentId = experiment.Id,
-            TotalInstructions = experiment.TotalInstructions,
-            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
-            InstructionResults = new Dictionary<int, bool>(),
-            Messages = new List<string>(),
-            IsSetupValid = true
-        };
-
-        // Count components for validation
-        int resistorCount = 0;
-        int dipSwitchCount = 0;
-        int ic7448Count = 0;
-        int sevenSegCount = 0;
-
-        // Component references
-        string mainIc = "";
-        string mainSevenSeg = "";
-        dynamic ic7448State = null;
-        dynamic sevenSegState = null;
-        List<string> resistorIds = new List<string>();
-        List<string> switchIds = new List<string>();
-
-        Debug.Log($"Component states: {JsonConvert.SerializeObject(simResult.ComponentStates, Formatting.Indented)}");
-
-        // Count and collect components
-        foreach (var comp in simResult.ComponentStates)
-        {
-            Debug.Log($"Component: {comp}");
-            if (comp.Key.StartsWith("resistor"))
-            {
-                resistorCount++;
-                resistorIds.Add(comp.Key);
-            }
-            else if (comp.Key.StartsWith("dipSwitch"))
-            {
-                dipSwitchCount++;
-                switchIds.Add(comp.Key);
-            }
-            else if (comp.Key.StartsWith("ic"))
-            {
-                dynamic dynamicValue = comp.Value;
-                string typeValue = dynamicValue.type;
-                if (typeValue == "IC7448")
-                {
-                    ic7448Count++;
-                    ic7448State = dynamicValue;
-                    mainIc = comp.Key;
-                }
-            }
-            else if (comp.Key.StartsWith("sevenSeg"))
-            {
-                sevenSegCount++;
-                sevenSegState = comp.Value;
-                mainSevenSeg = comp.Key;
-            }
-        }
-
-        // Helper function to check if instruction requirements are met
-        bool CheckInstructionRequirements(int instructionIndex)
-        {
-            switch (instructionIndex)
-            {
-                case 0: // "Add a resistor and connect it to any power terminal"
-                    if (resistorCount >= 1)
-                    {
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 1: // "Add a switch and connect it in series with the resistor"
-                    if (resistorCount >= 1 && dipSwitchCount >= 1)
-                    {
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 2: // "Ground the switch"
-                    if (dipSwitchCount >= 1)
-                    {
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 3: // "Add a second resistor and connect it to any power terminal"
-                    if (resistorCount >= 2)
-                    {
-                        int resistorsConnectedToPower = 0;
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    resistorsConnectedToPower++;
-                                }
-                            }
-                        }
-                        return resistorsConnectedToPower >= 2;
-                    }
-                    return false;
-
-                case 4: // "Add a second switch and connect it in series with the second resistor"
-                    if (resistorCount >= 2 && dipSwitchCount >= 2)
-                    {
-                        int switchesInSeries = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    switchesInSeries++;
-                                }
-                            }
-                        }
-                        return switchesInSeries >= 2;
-                    }
-                    return false;
-
-                case 5: // "Ground the second switch"
-                    if (dipSwitchCount >= 2)
-                    {
-                        int switchesGrounded = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    switchesGrounded++;
-                                }
-                            }
-                        }
-                        return switchesGrounded >= 2;
-                    }
-                    return false;
-
-                case 6: // "Add a third resistor and connect it to any power terminal"
-                    if (resistorCount >= 3)
-                    {
-                        int resistorsConnectedToPower = 0;
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    resistorsConnectedToPower++;
-                                }
-                            }
-                        }
-                        return resistorsConnectedToPower >= 3;
-                    }
-                    return false;
-
-                case 7: // "Add a third switch and connect it in series with the third resistor"
-                    if (resistorCount >= 3 && dipSwitchCount >= 3)
-                    {
-                        int switchesInSeries = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    switchesInSeries++;
-                                }
-                            }
-                        }
-                        return switchesInSeries >= 3;
-                    }
-                    return false;
-
-                case 8: // "Ground the third switch"
-                    if (dipSwitchCount >= 3)
-                    {
-                        int switchesGrounded = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    switchesGrounded++;
-                                }
-                            }
-                        }
-                        return switchesGrounded >= 3;
-                    }
-                    return false;
-
-                case 9: // "Add a fourth resistor and connect it to any power terminal"
-                    if (resistorCount >= 4)
-                    {
-                        int resistorsConnectedToPower = 0;
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    resistorsConnectedToPower++;
-                                }
-                            }
-                        }
-                        return resistorsConnectedToPower >= 4;
-                    }
-                    return false;
-
-                case 10: // "Add a fourth switch and connect it in series with the fourth resistor"
-                    if (resistorCount >= 4 && dipSwitchCount >= 4)
-                    {
-                        int switchesInSeries = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    switchesInSeries++;
-                                }
-                            }
-                        }
-                        return switchesInSeries >= 4;
-                    }
-                    return false;
-
-                case 11: // "Ground the fourth switch"
-                    if (dipSwitchCount >= 4)
-                    {
-                        int switchesGrounded = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    switchesGrounded++;
-                                }
-                            }
-                        }
-                        return switchesGrounded >= 4;
-                    }
-                    return false;
-
-                case 12: // "Ground IC7448 to Ground Breadboard"
-                    if (ic7448Count >= 1 && ic7448State != null)
-                    {
-                        try
-                        {
-                            bool hasGnd = ic7448State.hasGnd;
-                            return hasGnd;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 13: // "VCC IC7448 to VCC Breadboard"
-                    if (ic7448Count >= 1 && ic7448State != null)
-                    {
-                        try
-                        {
-                            bool hasVcc = ic7448State.hasVcc;
-                            return hasVcc;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 14: // "IC7448 A to input 1 from pull-up resistor input"
-                case 15: // "IC7448 B to input 2 from pull-up resistor input"
-                case 16: // "IC7448 C to input 3 from pull-up resistor input"
-                case 17: // "IC7448 D to input 4 from pull-up resistor input"
-                    if (ic7448Count >= 1 && resistorCount >= 4 && dipSwitchCount >= 4)
-                    {
-                        JToken icComp = components[mainIc];
-                        if (icComp != null)
-                        {
-                            string[] inputPins = { "pin7", "pin1", "pin2", "pin6" }; // A, B, C, D pins for IC7448
-                            int inputIndex = instructionIndex - 14;
-                            string inputPin = icComp[inputPins[inputIndex]]?.ToString();
-
-                            if (inputPin != null)
-                            {
-                                foreach (string resistorId in resistorIds)
-                                {
-                                    if (simResult.ComponentStates.ContainsKey(resistorId))
-                                    {
-                                        dynamic resistorState = simResult.ComponentStates[resistorId];
-                                        string rPin1 = resistorState.pin1;
-                                        string rPin2 = resistorState.pin2;
-
-                                        if (AreNodesConnected(inputPin, rPin1, simResult.Nets) ||
-                                            AreNodesConnected(inputPin, rPin2, simResult.Nets))
-                                        {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 18: // "IC7448 LT set to HIGH"
-                    if (ic7448Count >= 1 && ic7448State != null)
-                    {
-                        try
-                        {
-                            bool ltEnabled = ic7448State.control.LT;
-                            return ltEnabled;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 19: // "IC7448 RBO set to HIGH"
-                    if (ic7448Count >= 1 && ic7448State != null)
-                    {
-                        try
-                        {
-                            bool rboEnabled = ic7448State.control.BI_RBO;
-                            return rboEnabled;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 20: // "IC7448 RBI set to HIGH"
-                    if (ic7448Count >= 1 && ic7448State != null)
-                    {
-                        try
-                        {
-                            bool rbiEnabled = ic7448State.control.RBI;
-                            return rbiEnabled;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 21: // "IC7448 f PIN to 7-Segment f PIN"
-                case 22: // "IC7448 g PIN to 7-Segment g PIN"
-                case 23: // "IC7448 a PIN to 7-Segment a PIN"
-                case 24: // "IC7448 b PIN to 7-Segment b PIN"
-                case 25: // "IC7448 c PIN to 7-Segment c PIN"
-                case 26: // "IC7448 d PIN to 7-Segment d PIN"
-                case 27: // "IC7448 e PIN to 7-Segment e PIN"
-                    if (ic7448Count >= 1 && sevenSegCount >= 1)
-                    {
-                        JToken icComp = components[mainIc];
-                        JToken sevenSegComp = components[mainSevenSeg];
-                        if (icComp != null && sevenSegComp != null)
-                        {
-                            string[] icPins = { "pin15", "pin14", "pin13", "pin12", "pin11", "pin10", "pin9" }; // f, g, a, b, c, d, e
-                            string[] segNodes = { "nodeF", "nodeG", "nodeA", "nodeB", "nodeC", "nodeD", "nodeE" };
-
-                            int pinIndex = instructionIndex - 21;
-                            string icPin = icComp[icPins[pinIndex]]?.ToString();
-                            string segNode = sevenSegComp[segNodes[pinIndex]]?.ToString();
-
-                            if (icPin != null && segNode != null)
-                            {
-                                return AreNodesConnected(icPin, segNode, simResult.Nets);
-                            }
-                        }
-                    }
-                    return false;
-
-                case 28: // "Set inputs to 0000 to display 0"
-                case 29: // "Set inputs to 0001 to display 1"
-                case 30: // "Set inputs to 0010 to display 2"
-                case 31: // "Set inputs to 0011 to display 3"
-                case 32: // "Set inputs to 0100 to display 4"
-                case 33: // "Set inputs to 0101 to display 5"
-                case 34: // "Set inputs to 0110 to display 6"
-                case 35: // "Set inputs to 0111 to display 7"
-                case 36: // "Set inputs to 1000 to display 8"
-                case 37: // "Set inputs to 1001 to display 9"
-                case 38: // "Set inputs to 1010 to display a"
-                    if (ic7448Count >= 1 && ic7448State != null)
-                    {
-                        try
-                        {
-                            // Get expected input pattern for this instruction
-                            int inputPattern = instructionIndex - 28; // 0-10 for 0000-1010
-                            bool expectedA = (inputPattern & 1) == 1;
-                            bool expectedB = (inputPattern & 2) == 2;
-                            bool expectedC = (inputPattern & 4) == 4;
-                            bool expectedD = (inputPattern & 8) == 8;
-
-                            // Get actual IC inputs from simResult.ComponentStates
-                            bool actualA = ic7448State.inputs.A;
-                            bool actualB = ic7448State.inputs.B;
-                            bool actualC = ic7448State.inputs.C;
-                            bool actualD = ic7448State.inputs.D;
-
-                            return (actualA == expectedA) && (actualB == expectedB) && (actualC == expectedC) && (actualD == expectedD);
-                        }
-                        catch
-                        {
-                            return false;
-                        }
-                    }
-                    return false;
-
-                default:
-                    return false;
-            }
-        }
-
-        // Check all instructions from current to end to detect future completed ones
-        List<int> completedInstructions = new List<int>();
-        for (int i = CurrentInstructionIndex; i < experiment.TotalInstructions; i++)
-        {
-            if (CheckInstructionRequirements(i))
-            {
-                completedInstructions.Add(i);
-            }
-        }
-
-        // Update instruction results
-        foreach (int instructionIndex in completedInstructions)
-        {
-            result.InstructionResults[instructionIndex] = true;
-            _completedInstructions[experiment.Id].Add(instructionIndex);
-        }
-
-        // Set completed instructions count
-        result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
-
-        // Move to next uncompleted instruction
-        bool foundNext = false;
-        for (int i = CurrentInstructionIndex; i < experiment.TotalInstructions; i++)
-        {
-            if (!_completedInstructions[experiment.Id].Contains(i))
-            {
-                CurrentInstructionIndex = i;
-                result.MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex];
-                foundNext = true;
-                break;
-            }
-        }
-
-        // If all instructions completed, mark experiment as finished
-        if (!foundNext)
-        {
-            result.Messages.Add("Experiment completed successfully!");
-            CurrentInstructionIndex = experiment.TotalInstructions - 1;
-        }
-
-        return result;
-    }
-
-    private ExperimentResult Evaluate74138To8LED(
-        SimulationResult simResult,
-        ExperimentDefinition experiment,
-        JToken components)
-    {
-        var result = new ExperimentResult
-        {
-            ExperimentName = experiment.Name,
-            ExperimentId = experiment.Id,
-            TotalInstructions = experiment.TotalInstructions,
-            MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex],
-            InstructionResults = new Dictionary<int, bool>(),
-            Messages = new List<string>(),
-            IsSetupValid = true
-        };
-
-        // Count components for validation
-        int resistorCount = 0;
-        int dipSwitchCount = 0;
-        int ic74138Count = 0;
-        int ledCount = 0;
-
-        // Component references
-        string mainIc = "";
-        dynamic ic74138State = null;
-        List<string> resistorIds = new List<string>();
-        List<string> switchIds = new List<string>();
-        List<string> ledIds = new List<string>();
-
-        Debug.Log($"Component states: {JsonConvert.SerializeObject(simResult.ComponentStates, Formatting.Indented)}");
-
-        // Count and collect components
-        foreach (var comp in simResult.ComponentStates)
-        {
-            Debug.Log($"Component: {comp}");
-            if (comp.Key.StartsWith("resistor"))
-            {
-                resistorCount++;
-                resistorIds.Add(comp.Key);
-            }
-            else if (comp.Key.StartsWith("dipSwitch"))
-            {
-                dipSwitchCount++;
-                switchIds.Add(comp.Key);
-            }
-            else if (comp.Key.StartsWith("ic"))
-            {
-                dynamic dynamicValue = comp.Value;
-                string typeValue = dynamicValue.type;
-                if (typeValue == "IC74138")
-                {
-                    ic74138Count++;
-                    ic74138State = dynamicValue;
-                    mainIc = comp.Key;
-                }
-            }
-            else if (comp.Key.StartsWith("led"))
-            {
-                ledCount++;
-                ledIds.Add(comp.Key);
-            }
-        }
-
-        // Helper function to check if instruction requirements are met
-        bool CheckInstructionRequirements(int instructionIndex)
-        {
-            switch (instructionIndex)
-            {
-                case 0: // "Add a resistor and connect it to any power terminal"
-                    if (resistorCount >= 1)
-                    {
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 1: // "Add a switch and connect it in series with the resistor"
-                    if (resistorCount >= 1 && dipSwitchCount >= 1)
-                    {
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 2: // "Ground the switch"
-                    if (dipSwitchCount >= 1)
-                    {
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 3: // "Add a second resistor and connect it to any power terminal"
-                    if (resistorCount >= 2)
-                    {
-                        int resistorsConnectedToPower = 0;
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    resistorsConnectedToPower++;
-                                }
-                            }
-                        }
-                        return resistorsConnectedToPower >= 2;
-                    }
-                    return false;
-
-                case 4: // "Add a second switch and connect it in series with the second resistor"
-                    if (resistorCount >= 2 && dipSwitchCount >= 2)
-                    {
-                        int switchesInSeries = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    switchesInSeries++;
-                                }
-                            }
-                        }
-                        return switchesInSeries >= 2;
-                    }
-                    return false;
-
-                case 5: // "Ground the second switch"
-                    if (dipSwitchCount >= 2)
-                    {
-                        int switchesGrounded = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    switchesGrounded++;
-                                }
-                            }
-                        }
-                        return switchesGrounded >= 2;
-                    }
-                    return false;
-
-                case 6: // "Add a third resistor and connect it to any power terminal"
-                    if (resistorCount >= 3)
-                    {
-                        int resistorsConnectedToPower = 0;
-                        foreach (string resistorId in resistorIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(resistorId))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[resistorId];
-                                string pin1 = resistorState.pin1;
-                                string pin2 = resistorState.pin2;
-                                if ((pin1 != null && pin1.Contains("PWR")) || (pin2 != null && pin2.Contains("PWR")))
-                                {
-                                    resistorsConnectedToPower++;
-                                }
-                            }
-                        }
-                        return resistorsConnectedToPower >= 3;
-                    }
-                    return false;
-
-                case 7: // "Add a third switch and connect it in series with the third resistor"
-                    if (resistorCount >= 3 && dipSwitchCount >= 3)
-                    {
-                        int switchesInSeries = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool pin1HasResistor = switchState.pin1HasResistor ?? false;
-                                bool pin2HasResistor = switchState.pin2HasResistor ?? false;
-                                if (pin1HasResistor || pin2HasResistor)
-                                {
-                                    switchesInSeries++;
-                                }
-                            }
-                        }
-                        return switchesInSeries >= 3;
-                    }
-                    return false;
-
-                case 8: // "Ground the third switch"
-                    if (dipSwitchCount >= 3)
-                    {
-                        int switchesGrounded = 0;
-                        foreach (string switchId in switchIds)
-                        {
-                            if (simResult.ComponentStates.ContainsKey(switchId))
-                            {
-                                dynamic switchState = simResult.ComponentStates[switchId];
-                                bool isGrounded = switchState.isGrounded ?? false;
-                                if (isGrounded)
-                                {
-                                    switchesGrounded++;
-                                }
-                            }
-                        }
-                        return switchesGrounded >= 3;
-                    }
-                    return false;
-
-                case 9: // "Ground IC74138 to Ground Breadboard"
-                    if (ic74138Count >= 1 && ic74138State != null)
-                    {
-                        try
-                        {
-                            bool hasGnd = ic74138State.hasGnd;
-                            return hasGnd;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 10: // "VCC IC74138 to VCC Breadboard"
-                    if (ic74138Count >= 1 && ic74138State != null)
-                    {
-                        try
-                        {
-                            bool hasVcc = ic74138State.hasVcc;
-                            return hasVcc;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 11: // "IC74138 A0 to input 1 from pull-up resistor input"
-                case 12: // "IC74138 A1 to input 2 from pull-up resistor input"
-                case 13: // "IC74138 A2 to input 3 from pull-up resistor input"
-                    if (ic74138Count >= 1 && resistorCount >= 3 && dipSwitchCount >= 3)
-                    {
-                        JToken icComp = components[mainIc];
-                        if (icComp != null)
-                        {
-                            string[] inputPins = { "pin1", "pin2", "pin3" };
-                            int inputIndex = instructionIndex - 11;
-                            string inputPin = icComp[inputPins[inputIndex]]?.ToString();
-
-                            if (inputPin != null)
-                            {
-                                foreach (string resistorId in resistorIds)
-                                {
-                                    if (simResult.ComponentStates.ContainsKey(resistorId))
-                                    {
-                                        dynamic resistorState = simResult.ComponentStates[resistorId];
-                                        string rPin1 = resistorState.pin1;
-                                        string rPin2 = resistorState.pin2;
-
-                                        if (AreNodesConnected(inputPin, rPin1, simResult.Nets) ||
-                                            AreNodesConnected(inputPin, rPin2, simResult.Nets))
-                                        {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 14: // "E1 set to LOW"
-                    if (ic74138Count >= 1 && ic74138State != null)
-                    {
-                        try
-                        {
-                            bool e1Enabled = ic74138State.enable.E1;
-                            return e1Enabled;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 15: // "E2 set to LOW"
-                    if (ic74138Count >= 1 && ic74138State != null)
-                    {
-                        try
-                        {
-                            bool e2Enabled = ic74138State.enable.E2;
-                            return e2Enabled;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 16: // "E3 set to HIGH"
-                    if (ic74138Count >= 1 && ic74138State != null)
-                    {
-                        try
-                        {
-                            bool e3Enabled = ic74138State.enable.E3;
-                            return e3Enabled;
-                        }
-                        catch { return false; }
-                    }
-                    return false;
-
-                case 17: // "Add 8 LEDs"
-                    return ledCount >= 8;
-
-                case 18: // "Connect LEDs to IC74138 outputs"
-                    if (ic74138Count >= 1 && ledCount >= 8)
-                    {
-                        JToken icComp = components[mainIc];
-                        if (icComp != null)
-                        {
-                            string[] outputPins = new string[] {
-                            "pin15", "pin14", "pin13", "pin12",
-                            "pin11", "pin10", "pin9", "pin7"
-                        };
-
-                            int connectedLeds = 0;
-                            foreach (string pin in outputPins)
-                            {
-                                foreach (JProperty componentProp in components)
-                                {
-                                    if (componentProp.Name.StartsWith("led"))
-                                    {
-                                        JToken ledComp = componentProp.Value;
-                                        string pinValue = icComp[pin]?.ToString();
-                                        string anodeValue = ledComp["anode"]?.ToString();
-
-                                        if (AreNodesConnected(pinValue, anodeValue, simResult.Nets))
-                                        {
-                                            connectedLeds++;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            return connectedLeds >= 8;
-                        }
-                    }
-                    return false;
-
-                case 19: // "Connect O0 to a LED"
-                case 20: // "Connect O1 to a LED"
-                case 21: // "Connect O2 to a LED"
-                case 22: // "Connect O3 to a LED"
-                case 23: // "Connect O4 to a LED"
-                case 24: // "Connect O5 to a LED"
-                case 25: // "Connect O6 to a LED"
-                case 26: // "Connect O7 to a LED"
-                    if (ic74138Count >= 1 && ledCount >= 8)
-                    {
-                        JToken icComp = components[mainIc];
-                        if (icComp != null)
-                        {
-                            string[] outputPins = new string[] {
-                                "pin15", "pin14", "pin13", "pin12",
-                                "pin11", "pin10", "pin9", "pin7"
-                            };
-
-                            int outputIndex = instructionIndex - 19;
-                            string targetPin = outputPins[outputIndex];
-
-                            foreach (JProperty componentProp in components)
-                            {
-                                if (componentProp.Name.StartsWith("led"))
-                                {
-                                    JToken ledComp = componentProp.Value;
-                                    string pinValue = icComp[targetPin]?.ToString();
-                                    string anodeValue = ledComp["anode"]?.ToString();
-
-                                    if (AreNodesConnected(pinValue, anodeValue, simResult.Nets))
-                                    {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    return false;
-
-                case 27: // "Set inputs to 000 (A2=0, A1=0, A0=0)"
-                case 28: // "Set inputs to 001 (A2=0, A1=0, A0=1)"
-                case 29: // "Set inputs to 010 (A2=0, A1=1, A0=0)"
-                case 30: // "Set inputs to 011 (A2=0, A1=1, A0=1)"
-                case 31: // "Set inputs to 100 (A2=1, A1=0, A0=0)"
-                case 32: // "Set inputs to 101 (A2=1, A1=0, A0=1)"
-                case 33: // "Set inputs to 110 (A2=1, A1=1, A0=0)"
-                case 34: // "Set inputs to 111 (A2=1, A1=1, A0=1)"
-                    if (ic74138Count >= 1 && ic74138State != null)
-                    {
-                        try
-                        {
-                            // Get expected input pattern for this instruction
-                            int inputPattern = instructionIndex - 27; // 0-7 for 000-111
-                            bool expectedA0 = (inputPattern & 1) == 1;
-                            bool expectedA1 = (inputPattern & 2) == 2;
-                            bool expectedA2 = (inputPattern & 4) == 4;
-
-                            // Get actual IC inputs from simResult.ComponentStates
-                            bool actualA0 = ic74138State.address.A0;
-                            bool actualA1 = ic74138State.address.A1;
-                            bool actualA2 = ic74138State.address.A2;
-
-                            return (actualA0 == expectedA0) && (actualA1 == expectedA1) && (actualA2 == expectedA2);
-                        }
-                        catch
-                        {
-                            return false;
-                        }
-                    }
-                    return false;
-
-                default:
-                    return false;
-            }
-        }
-
-        // Check all instructions from current to end to detect future completed ones
-        List<int> completedInstructions = new List<int>();
-        for (int i = CurrentInstructionIndex; i < experiment.TotalInstructions; i++)
-        {
-            if (CheckInstructionRequirements(i))
-            {
-                completedInstructions.Add(i);
-            }
-            else
-            {
-                break; // Stop at first incomplete instruction to maintain linear progression
-            }
-        }
-
-        // Validate current instruction step and provide specific feedback
-        bool instructionCompleted = completedInstructions.Contains(CurrentInstructionIndex);
-
-        if (!instructionCompleted)
-        {
-            // Provide specific feedback for current instruction
-            switch (CurrentInstructionIndex)
-            {
-                case 0:
-                    if (resistorCount == 0)
-                        result.Messages.Add("Add a resistor component");
-                    else
-                        result.Messages.Add("Resistor must be connected to a power terminal (PWR)");
-                    break;
-
-                case 1:
-                    if (dipSwitchCount == 0)
-                        result.Messages.Add("Add a switch component");
-                    else if (resistorCount == 0)
-                        result.Messages.Add("Need a resistor first");
-                    else
-                        result.Messages.Add("Switch must be connected in series with the resistor");
-                    break;
-
-                case 2:
-                    if (dipSwitchCount == 0)
-                        result.Messages.Add("Add a switch component first");
-                    else
-                        result.Messages.Add("Switch must be connected to ground (GND)");
-                    break;
-
-                case 3:
-                    result.Messages.Add($"Need at least 2 resistors connected to power, currently have {resistorCount}");
-                    break;
-
-                case 4:
-                    if (resistorCount < 2)
-                        result.Messages.Add("Need at least 2 resistors first");
-                    else if (dipSwitchCount < 2)
-                        result.Messages.Add("Need at least 2 switches");
-                    else
-                        result.Messages.Add("Need at least 2 switches connected in series with resistors");
-                    break;
-
-                case 5:
-                    if (dipSwitchCount < 2)
-                        result.Messages.Add("Need at least 2 switches first");
-                    else
-                        result.Messages.Add("Need at least 2 switches connected to ground");
-                    break;
-
-                case 6:
-                    result.Messages.Add($"Need at least 3 resistors connected to power, currently have {resistorCount}");
-                    break;
-
-                case 7:
-                    if (resistorCount < 3)
-                        result.Messages.Add("Need at least 3 resistors first");
-                    else if (dipSwitchCount < 3)
-                        result.Messages.Add("Need at least 3 switches");
-                    else
-                        result.Messages.Add("Need at least 3 switches connected in series with resistors");
-                    break;
-
-                case 8:
-                    if (dipSwitchCount < 3)
-                        result.Messages.Add("Need at least 3 switches first");
-                    else
-                        result.Messages.Add("Need at least 3 switches connected to ground");
-                    break;
-
-                case 9:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Add IC74138 component first");
-                    else
-                        result.Messages.Add("IC74138 pin 8 (GND) must be connected to ground rail");
-                    break;
-
-                case 10:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Add IC74138 component first");
-                    else
-                        result.Messages.Add("IC74138 pin 16 (VCC) must be connected to power rail");
-                    break;
-
-                case 11:
-                case 12:
-                case 13:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else if (resistorCount < 3)
-                        result.Messages.Add("Need 3 resistors first");
-                    else if (dipSwitchCount < 3)
-                        result.Messages.Add("Need 3 switches first");
-                    else
-                    {
-                        string[] pinNames = { "A0", "A1", "A2" };
-                        int inputIndex = CurrentInstructionIndex - 11;
-                        result.Messages.Add($"IC74138 {pinNames[inputIndex]} must be connected to pull-up resistor network");
-                    }
-                    break;
-
-                case 14:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else
-                        result.Messages.Add("IC74138 E1 pin must be set to LOW");
-                    break;
-
-                case 15:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else
-                        result.Messages.Add("IC74138 E2 pin must be set to LOW");
-                    break;
-
-                case 16:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else
-                        result.Messages.Add("IC74138 E3 pin must be set to HIGH");
-                    break;
-
-                case 17:
-                    result.Messages.Add($"Need at least 8 LEDs, currently have {ledCount}");
-                    break;
-
-                case 18:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else if (ledCount < 8)
-                        result.Messages.Add("Need 8 LEDs first");
-                    else
-                        result.Messages.Add("Connect LEDs to IC74138 output pins");
-                    break;
-                case 19:
-                case 20:
-                case 21:
-                case 22:
-                case 23:
-                case 24:
-                case 25:
-                case 26:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else if (ledCount < 8)
-                        result.Messages.Add("Need 8 LEDs first");
-                    else
-                    {
-                        string[] outputNames = { "O0", "O1", "O2", "O3", "O4", "O5", "O6", "O7" };
-                        int outputIndex = CurrentInstructionIndex - 19;
-                        result.Messages.Add($"Connect IC74138 {outputNames[outputIndex]} to a LED anode");
-                    }
-                    break;
-
-                case 27:
-                case 28:
-                case 29:
-                case 30:
-                case 31:
-                case 32:
-                case 33:
-                case 34:
-                    if (ic74138Count == 0)
-                        result.Messages.Add("Need IC74138 first");
-                    else if (dipSwitchCount < 3)
-                        result.Messages.Add("Need 3 DIP switches to control inputs");
-                    else
-                    {
-                        int inputPattern = CurrentInstructionIndex - 27;
-                        string binaryPattern = Convert.ToString(inputPattern, 2).PadLeft(3, '0');
-                        result.Messages.Add($"Set IC74138 inputs to {binaryPattern} (A2={binaryPattern[0]}, A1={binaryPattern[1]}, A0={binaryPattern[2]})");
-                    }
-                    break;
-            }
-        }
-        else
-        {
-            // Mark all completed instructions
-            foreach (int completedIndex in completedInstructions)
-            {
-                result.InstructionResults[completedIndex] = true;
-                if (!_completedInstructions[experiment.Id].Contains(completedIndex))
-                {
-                    _completedInstructions[experiment.Id].Add(completedIndex);
-                }
-            }
-
-            result.CompletedInstructions = _completedInstructions[experiment.Id].Count;
-
-            // Advance to the next incomplete instruction
-            if (completedInstructions.Count > 0)
-            {
-                int nextIncompleteInstruction = completedInstructions.Max() + 1;
-                if (nextIncompleteInstruction < experiment.TotalInstructions)
-                {
-                    CurrentInstructionIndex = nextIncompleteInstruction;
-                    result.MainInstruction = experiment.InstructionDescriptions[CurrentInstructionIndex];
-                }
-                else
-                {
-                    // All instructions completed
-                    NextInstruction();
-                }
-            }
-        }
-
-        return result;
-    }
-}
-
-
-// Support classes for experiment evaluation
-public class ExperimentDefinition
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
-    public int TotalInstructions { get; set; }
-    public Dictionary<int, string> InstructionDescriptions { get; set; } = new Dictionary<int, string>();
-}
-
-// Update the ExperimentResult class to support multiple messages
-public class ExperimentResult
-{
-    public string ExperimentName { get; set; }
-    public int ExperimentId { get; set; }
-    public Dictionary<int, bool> InstructionResults { get; set; } = new Dictionary<int, bool>();
-    public int CompletedInstructions { get; set; }
-    public int TotalInstructions { get; set; }
-    public List<string> Messages { get; set; } = new List<string>();
-    public string MainInstruction { get; set; }
-    public bool IsSetupValid { get; set; }
 }
