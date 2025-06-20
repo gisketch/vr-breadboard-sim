@@ -6,6 +6,9 @@ using UnityEngine;
 
 public class Evaluate74138
 {
+    // Static dictionary to persist completed input patterns across evaluations
+    private static Dictionary<string, HashSet<int>> completedInputPatterns = new Dictionary<string, HashSet<int>>();
+
     public ExperimentResult Evaluate74138To8LED(
         BreadboardSimulator.SimulationResult simResult,
         ExperimentDefinition experiment,
@@ -22,6 +25,12 @@ public class Evaluate74138
             Messages = new List<string>(),
             IsSetupValid = true
         };
+
+        // Initialize completed input patterns tracking for this experiment if not exists
+        if (!completedInputPatterns.ContainsKey(experiment.Id.ToString()))
+        {
+            completedInputPatterns[experiment.Id.ToString()] = new HashSet<int>();
+        }
 
         // Count components and get component lists
         int ic74138Count = 0;
@@ -217,7 +226,7 @@ public class Evaluate74138
         }
 
         // Steps 11-13: IC74138 inputs to pull-up resistor inputs
-        if (canProceed && CheckStep11(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult))
+        if (canProceed && CheckStep11(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult, ic74138State))
         {
             completedInstructions[experiment.Id].Add(11);
             result.InstructionResults[11] = true;
@@ -228,7 +237,7 @@ public class Evaluate74138
             canProceed = false;
         }
 
-        if (canProceed && CheckStep12(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult))
+        if (canProceed && CheckStep12(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult, ic74138State))
         {
             completedInstructions[experiment.Id].Add(12);
             result.InstructionResults[12] = true;
@@ -239,7 +248,7 @@ public class Evaluate74138
             canProceed = false;
         }
 
-        if (canProceed && CheckStep13(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult))
+        if (canProceed && CheckStep13(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult, ic74138State))
         {
             completedInstructions[experiment.Id].Add(13);
             result.InstructionResults[13] = true;
@@ -311,7 +320,7 @@ public class Evaluate74138
         // Steps 19-26: Connect IC outputs to LEDs
         for (int i = 19; i <= 26 && canProceed; i++)
         {
-            if (CheckStepLEDConnection(i, ic74138Count, ledCount, components, mainIc, simResult))
+            if (CheckStepLEDConnection(i, ic74138Count, ledCount, components, mainIc, simResult, ic74138State))
             {
                 completedInstructions[experiment.Id].Add(i);
                 result.InstructionResults[i] = true;
@@ -323,18 +332,47 @@ public class Evaluate74138
             }
         }
 
-        // Steps 27-34: Test input combinations
-        for (int i = 27; i <= 34 && canProceed; i++)
+        // Steps 27-34: Test input combinations with persistent tracking
+        if (canProceed)
         {
-            if (CheckInputPattern(i, ic74138Count, ic74138State))
+            // Check for new completed patterns and add them to persistent storage
+            for (int i = 27; i <= 34; i++)
             {
-                completedInstructions[experiment.Id].Add(i);
-                result.InstructionResults[i] = true;
-                currentStep = i + 1;
+                if (CheckInputPattern(i, ic74138Count, ic74138State))
+                {
+                    completedInputPatterns[experiment.Id.ToString()].Add(i);
+                }
+            }
+
+            // Add all previously completed patterns to current session
+            foreach (int completedPattern in completedInputPatterns[experiment.Id.ToString()])
+            {
+                completedInstructions[experiment.Id].Add(completedPattern);
+                result.InstructionResults[completedPattern] = true;
+            }
+
+            // Determine current step based on completed patterns
+            int completedPatternCount = completedInputPatterns[experiment.Id.ToString()].Count;
+            if (completedPatternCount > 0)
+            {
+                // Find the next uncompleted pattern
+                for (int i = 27; i <= 34; i++)
+                {
+                    if (!completedInputPatterns[experiment.Id.ToString()].Contains(i))
+                    {
+                        currentStep = i;
+                        break;
+                    }
+                }
+                // If all patterns completed
+                if (completedPatternCount == 8)
+                {
+                    currentStep = 35; // Beyond last step
+                }
             }
             else
             {
-                canProceed = false;
+                currentStep = 27; // Start with first pattern
             }
         }
 
@@ -360,6 +398,28 @@ public class Evaluate74138
                 var stateType = ic74138State.GetType();
                 var hasAddressProperty = stateType.GetProperty("address") != null;
                 var hasEnableProperty = stateType.GetProperty("enable") != null;
+                var hasInputConflictProperty = stateType.GetProperty("inputHasConflict") != null;
+                var hasOutputConflictProperty = stateType.GetProperty("outputHasConflict") != null;
+
+                // Check for input conflicts
+                if (hasInputConflictProperty)
+                {
+                    bool inputHasConflict = ic74138State.inputHasConflict;
+                    if (inputHasConflict)
+                    {
+                        result.Messages.Add("Input pins cannot share the same network connection.");
+                    }
+                }
+
+                // Check for output conflicts
+                if (hasOutputConflictProperty)
+                {
+                    bool outputHasConflict = ic74138State.outputHasConflict;
+                    if (outputHasConflict)
+                    {
+                        result.Messages.Add("Output pins cannot share the same network connection.");
+                    }
+                }
 
                 if (hasAddressProperty && hasEnableProperty)
                 {
@@ -401,6 +461,25 @@ public class Evaluate74138
         // result.Messages.Add($"Progress: Step {currentStep}/{experiment.TotalInstructions}");
 
         return result;
+    }
+
+    // Method to reset completed input patterns (call this when starting a new experiment)
+    public static void ResetCompletedInputPatterns(string experimentId)
+    {
+        if (completedInputPatterns.ContainsKey(experimentId))
+        {
+            completedInputPatterns[experimentId].Clear();
+        }
+    }
+
+    // Method to get completed input patterns count (for debugging/UI)
+    public static int GetCompletedInputPatternsCount(string experimentId)
+    {
+        if (completedInputPatterns.ContainsKey(experimentId))
+        {
+            return completedInputPatterns[experimentId].Count;
+        }
+        return 0;
     }
 
     // Helper methods for checking each step
@@ -630,48 +709,145 @@ public class Evaluate74138
         return false;
     }
 
-    private bool CheckStep11(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult)
+    private bool CheckStep11(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult, dynamic ic74138State)
     {
-        return CheckICInputConnection(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult, "pin1");
-    }
+        // Check for input conflicts first
+        if (ic74138State != null)
+        {
+            try
+            {
+                var stateType = ic74138State.GetType();
+                var hasInputConflictProperty = stateType.GetProperty("inputHasConflict") != null;
 
-    private bool CheckStep12(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult)
-    {
-        return CheckICInputConnection(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult, "pin2");
-    }
+                if (hasInputConflictProperty)
+                {
+                    bool inputHasConflict = ic74138State.inputHasConflict;
+                    if (inputHasConflict)
+                    {
+                        return false; // Fail the step if input conflict detected
+                    }
+                }
+            }
+            catch { }
+        }
 
-    private bool CheckStep13(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult)
-    {
-        return CheckICInputConnection(ic74138Count, resistorCount, dipSwitchCount, components, mainIc, simResult, "pin3");
-    }
-
-    private bool CheckICInputConnection(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult, string inputPin)
-    {
         if (ic74138Count >= 1 && resistorCount >= 3 && dipSwitchCount >= 3)
         {
             JToken icComp = components[mainIc];
             if (icComp != null)
             {
-                string inputPinValue = icComp[inputPin]?.ToString();
+                string a0Pin = icComp["pin1"]?.ToString();
 
-                if (inputPinValue != null)
+                foreach (JProperty componentProp in components)
                 {
-                    foreach (JProperty componentProp in components)
+                    if (componentProp.Name.StartsWith("resistor"))
                     {
-                        if (componentProp.Name.StartsWith("resistor"))
-                        {
-                            if (simResult.ComponentStates.ContainsKey(componentProp.Name))
-                            {
-                                dynamic resistorState = simResult.ComponentStates[componentProp.Name];
-                                string rPin1 = resistorState.pin1;
-                                string rPin2 = resistorState.pin2;
+                        JToken resistorComp = componentProp.Value;
+                        string pin1Value = resistorComp["pin1"]?.ToString();
+                        string pin2Value = resistorComp["pin2"]?.ToString();
 
-                                if (AreNodesConnected(inputPinValue, rPin1, simResult.Nets) ||
-                                    AreNodesConnected(inputPinValue, rPin2, simResult.Nets))
-                                {
-                                    return true;
-                                }
-                            }
+                        if (AreNodesConnected(a0Pin, pin1Value, simResult.Nets) ||
+                            AreNodesConnected(a0Pin, pin2Value, simResult.Nets))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private bool CheckStep12(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult, dynamic ic74138State)
+    {
+        // Check for input conflicts first
+        if (ic74138State != null)
+        {
+            try
+            {
+                var stateType = ic74138State.GetType();
+                var hasInputConflictProperty = stateType.GetProperty("inputHasConflict") != null;
+
+                if (hasInputConflictProperty)
+                {
+                    bool inputHasConflict = ic74138State.inputHasConflict;
+                    if (inputHasConflict)
+                    {
+                        return false; // Fail the step if input conflict detected
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (ic74138Count >= 1 && resistorCount >= 3 && dipSwitchCount >= 3)
+        {
+            JToken icComp = components[mainIc];
+            if (icComp != null)
+            {
+                string a1Pin = icComp["pin2"]?.ToString();
+
+                foreach (JProperty componentProp in components)
+                {
+                    if (componentProp.Name.StartsWith("resistor"))
+                    {
+                        JToken resistorComp = componentProp.Value;
+                        string pin1Value = resistorComp["pin1"]?.ToString();
+                        string pin2Value = resistorComp["pin2"]?.ToString();
+
+                        if (AreNodesConnected(a1Pin, pin1Value, simResult.Nets) ||
+                            AreNodesConnected(a1Pin, pin2Value, simResult.Nets))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private bool CheckStep13(int ic74138Count, int resistorCount, int dipSwitchCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult, dynamic ic74138State)
+    {
+        // Check for input conflicts first
+        if (ic74138State != null)
+        {
+            try
+            {
+                var stateType = ic74138State.GetType();
+                var hasInputConflictProperty = stateType.GetProperty("inputHasConflict") != null;
+
+                if (hasInputConflictProperty)
+                {
+                    bool inputHasConflict = ic74138State.inputHasConflict;
+                    if (inputHasConflict)
+                    {
+                        return false; // Fail the step if input conflict detected
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (ic74138Count >= 1 && resistorCount >= 3 && dipSwitchCount >= 3)
+        {
+            JToken icComp = components[mainIc];
+            if (icComp != null)
+            {
+                string a2Pin = icComp["pin3"]?.ToString();
+
+                foreach (JProperty componentProp in components)
+                {
+                    if (componentProp.Name.StartsWith("resistor"))
+                    {
+                        JToken resistorComp = componentProp.Value;
+                        string pin1Value = resistorComp["pin1"]?.ToString();
+                        string pin2Value = resistorComp["pin2"]?.ToString();
+
+                        if (AreNodesConnected(a2Pin, pin1Value, simResult.Nets) ||
+                            AreNodesConnected(a2Pin, pin2Value, simResult.Nets))
+                        {
+                            return true;
                         }
                     }
                 }
@@ -765,17 +941,38 @@ public class Evaluate74138
         return false;
     }
 
-    private bool CheckStepLEDConnection(int stepIndex, int ic74138Count, int ledCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult)
+
+    private bool CheckStepLEDConnection(int stepIndex, int ic74138Count, int ledCount, JToken components, string mainIc, BreadboardSimulator.SimulationResult simResult, dynamic ic74138State)
     {
+        // Check for output conflicts first
+        if (ic74138State != null)
+        {
+            try
+            {
+                var stateType = ic74138State.GetType();
+                var hasOutputConflictProperty = stateType.GetProperty("outputHasConflict") != null;
+
+                if (hasOutputConflictProperty)
+                {
+                    bool outputHasConflict = ic74138State.outputHasConflict;
+                    if (outputHasConflict)
+                    {
+                        return false; // Fail the step if output conflict detected
+                    }
+                }
+            }
+            catch { }
+        }
+
         if (ic74138Count >= 1 && ledCount >= 8)
         {
             JToken icComp = components[mainIc];
             if (icComp != null)
             {
                 string[] outputPins = new string[] {
-                    "pin15", "pin14", "pin13", "pin12",
-                    "pin11", "pin10", "pin9", "pin7"
-                };
+                "pin15", "pin14", "pin13", "pin12",
+                "pin11", "pin10", "pin9", "pin7"
+            };
 
                 int outputIndex = stepIndex - 19;
                 string targetPin = outputPins[outputIndex];

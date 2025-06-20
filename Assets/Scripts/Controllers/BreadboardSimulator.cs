@@ -1159,10 +1159,48 @@ public class BreadboardSimulator : MonoBehaviour
             return (false, new { type = "IC74138", error = "Missing address pins" });
         }
 
-        // Get address inputs (A0, A1, A2)
-        bool a0 = nets[connectedNets["pin1"]].State == NodeState.HIGH;
-        bool a1 = nets[connectedNets["pin2"]].State == NodeState.HIGH;
-        bool a2 = nets[connectedNets["pin3"]].State == NodeState.HIGH;
+        // Detect input conflicts - check if multiple input pins share the same net
+        bool inputHasConflict = false;
+        var inputPins = new[] { "pin1", "pin2", "pin3" }; // A0, A1, A2
+        var inputNetIds = new List<int>();
+        
+        foreach (var pin in inputPins)
+        {
+            if (connectedNets.ContainsKey(pin))
+            {
+                int netId = connectedNets[pin];
+                if (inputNetIds.Contains(netId))
+                {
+                    inputHasConflict = true;
+                    break;
+                }
+                inputNetIds.Add(netId);
+            }
+        }
+
+        // Detect output conflicts - check if multiple output pins share the same net
+        bool outputHasConflict = false;
+        var outputPins = new[] { "pin15", "pin14", "pin13", "pin12", "pin11", "pin10", "pin9", "pin7" }; // O0-O7
+        var outputNetIds = new List<int>();
+        
+        foreach (var pin in outputPins)
+        {
+            if (connectedNets.ContainsKey(pin))
+            {
+                int netId = connectedNets[pin];
+                if (outputNetIds.Contains(netId))
+                {
+                    outputHasConflict = true;
+                    break;
+                }
+                outputNetIds.Add(netId);
+            }
+        }
+
+        // Get address inputs (A0, A1, A2) using connection analysis
+        bool a0 = GetInputState(connectedNets["pin1"], nets);
+        bool a1 = GetInputState(connectedNets["pin2"], nets);
+        bool a2 = GetInputState(connectedNets["pin3"], nets);
 
         // Get enable inputs (E1, E2, E3) with defaults
         bool e1 = !connectedNets.ContainsKey("pin4") || nets[connectedNets["pin4"]].State == NodeState.LOW;
@@ -1187,13 +1225,13 @@ public class BreadboardSimulator : MonoBehaviour
         }
 
         // Output pin mapping
-        var outputPins = new Dictionary<string, string> {
+        var outputPinMapping = new Dictionary<string, string> {
             {"O0", "pin15"}, {"O1", "pin14"}, {"O2", "pin13"}, {"O3", "pin12"},
             {"O4", "pin11"}, {"O5", "pin10"}, {"O6", "pin9"}, {"O7", "pin7"}
         };
 
         // Update output pins
-        foreach (var kvp in outputPins)
+        foreach (var kvp in outputPinMapping)
         {
             string output = kvp.Key;
             string pin = kvp.Value;
@@ -1223,8 +1261,36 @@ public class BreadboardSimulator : MonoBehaviour
             address = new { A0 = a0, A1 = a1, A2 = a2 },
             enable = new { E1 = e1, E2 = e2, E3 = e3 },
             outputs = outputs,
-            enabled = enabled
+            enabled = enabled,
+            inputHasConflict = inputHasConflict,
+            outputHasConflict = outputHasConflict
         });
+    }
+
+    // Helper method to determine input state based on connections
+    private bool GetInputState(int netId, List<Net> nets)
+    {
+        Net net = nets[netId];
+
+        // Check if this net has PWR and GND connections
+        bool hasPower = net.Nodes.Any(n => n.Contains("PWR"));
+        bool hasGround = net.Nodes.Any(n => n.Contains("GND"));
+        bool hasResistor = net.SourceComponents.Any(c => c.StartsWith("resistor"));
+
+        // If connected to PWR through resistor but no GND → DIP switch OFF → HIGH (pull-up)
+        if (hasPower && hasResistor && !hasGround)
+        {
+            return true; // HIGH
+        }
+
+        // If connected to PWR through resistor AND GND → DIP switch ON → LOW (pulled to ground)
+        if (hasPower && hasResistor && hasGround)
+        {
+            return false; // LOW
+        }
+
+        // Fallback to actual node state for other cases
+        return net.State == NodeState.HIGH;
     }
 
     // Evaluate 74148 8-to-3 line encoder IC
