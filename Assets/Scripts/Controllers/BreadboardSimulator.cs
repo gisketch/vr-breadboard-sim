@@ -1039,87 +1039,195 @@ public class BreadboardSimulator : MonoBehaviour
         }
     }
 
-    // Evaluate 7448 BCD to 7-segment decoder IC
     private (bool statesChanged, object state) EvaluateIC7448(
-        Dictionary<string, int> connectedNets, List<Net> nets, string componentId)
+         Dictionary<string, int> connectedNets, List<Net> nets, string componentId)
     {
         bool statesChanged = false;
 
-        // Check if all required pins are connected
-        if (!connectedNets.ContainsKey("pin7") ||  // A
-            !connectedNets.ContainsKey("pin1") ||  // B
-            !connectedNets.ContainsKey("pin2") ||  // C
-            !connectedNets.ContainsKey("pin6"))   // D
+        // Check if BCD input pins are connected
+        if (!connectedNets.ContainsKey("pin7") ||  // A input
+            !connectedNets.ContainsKey("pin1") ||  // B input
+            !connectedNets.ContainsKey("pin2") ||  // C input
+            !connectedNets.ContainsKey("pin6"))    // D input
         {
-            return (false, new { type = "IC7448", error = "Missing input pins" });
+            return (false, new { type = "IC7448", error = "Missing BCD input pins" });
         }
 
-        // Get BCD inputs (A, B, C, D)
-        bool inputA = nets[connectedNets["pin7"]].State == NodeState.HIGH;
-        bool inputB = nets[connectedNets["pin1"]].State == NodeState.HIGH;
-        bool inputC = nets[connectedNets["pin2"]].State == NodeState.HIGH;
-        bool inputD = nets[connectedNets["pin6"]].State == NodeState.HIGH;
+        // Detect input conflicts - check if multiple input pins share the same net
+        bool inputHasConflict = false;
+        var inputPins = new[] { "pin7", "pin1", "pin2", "pin6", "pin3", "pin4", "pin5" }; // A, B, C, D, LT, BI/RBO, RBI
+        var inputNetIds = new List<int>();
 
-        // Get control inputs (LT, BI/RBO, RBI)
-        bool lt = true;  // Default to HIGH (no lamp test)
-        bool bi_rbo = true;  // Default to HIGH (no blanking)
-        bool rbi = true;  // Default to HIGH (no ripple blanking)
-
-        if (connectedNets.ContainsKey("pin3"))
+        foreach (var pin in inputPins)
         {
-            lt = nets[connectedNets["pin3"]].State == NodeState.HIGH;
-        }
-        if (connectedNets.ContainsKey("pin5"))
-        {
-            bi_rbo = nets[connectedNets["pin5"]].State == NodeState.HIGH;
-        }
-        if (connectedNets.ContainsKey("pin4"))
-        {
-            rbi = nets[connectedNets["pin4"]].State == NodeState.HIGH;
+            if (connectedNets.ContainsKey(pin))
+            {
+                int netId = connectedNets[pin];
+                if (inputNetIds.Contains(netId))
+                {
+                    inputHasConflict = true;
+                    break;
+                }
+                inputNetIds.Add(netId);
+            }
         }
 
-        // Convert BCD to decimal
-        int value = (inputD ? 8 : 0) + (inputC ? 4 : 0) + (inputB ? 2 : 0) + (inputA ? 1 : 0);
+        // Detect output conflicts - check if multiple output pins share the same net
+        bool outputHasConflict = false;
+        var outputPins = new[] { "pin13", "pin12", "pin11", "pin10", "pin9", "pin15", "pin14" }; // A, B, C, D, E, F, G segments
+        var outputNetIds = new List<int>();
 
-        // 7-segment patterns for digits 0-9 (active LOW outputs)
-        var segmentPatterns = new Dictionary<int, bool[]>
+        foreach (var pin in outputPins)
         {
-            { 0, new bool[] { true, true, true, true, true, true, false } },   // 0
-            { 1, new bool[] { false, true, true, false, false, false, false } }, // 1
-            { 2, new bool[] { true, true, false, true, true, false, true } },   // 2
-            { 3, new bool[] { true, true, true, true, false, false, true } },   // 3
-            { 4, new bool[] { false, true, true, false, false, true, true } },  // 4
-            { 5, new bool[] { true, false, true, true, false, true, true } },   // 5
-            { 6, new bool[] { true, false, true, true, true, true, true } },    // 6
-            { 7, new bool[] { true, true, true, false, false, false, false } }, // 7
-            { 8, new bool[] { true, true, true, true, true, true, true } },     // 8
-            { 9, new bool[] { true, true, true, true, false, true, true } }     // 9
+            if (connectedNets.ContainsKey(pin))
+            {
+                int netId = connectedNets[pin];
+                if (outputNetIds.Contains(netId))
+                {
+                    outputHasConflict = true;
+                    break;
+                }
+                outputNetIds.Add(netId);
+            }
+        }
+
+        // Helper function to get input value with proper pull-up logic
+        object GetInputValueWithPullUp(string pin)
+        {
+            if (!connectedNets.ContainsKey(pin))
+                return null;
+
+            int netId = connectedNets[pin];
+            Net net = nets[netId];
+
+            // Check if this net has PWR and GND connections
+            bool hasPower = net.Nodes.Any(n => n.Contains("PWR"));
+            bool hasGround = net.Nodes.Any(n => n.Contains("GND"));
+            bool hasResistor = net.SourceComponents.Any(c => c.StartsWith("resistor"));
+
+            // If connected to PWR through resistor but no GND → DIP switch OFF → HIGH (pull-up)
+            if (hasPower && hasResistor && !hasGround)
+            {
+                return true; // HIGH
+            }
+
+            // If connected to PWR through resistor AND GND → DIP switch ON → LOW (pulled to ground)
+            if (hasPower && hasResistor && hasGround)
+            {
+                return false; // LOW
+            }
+
+            // If not connected to anything or uninitialized
+            if (net.State == NodeState.UNINITIALIZED)
+                return null;
+
+            // Fallback to actual node state for other cases
+            return net.State == NodeState.HIGH;
+        }
+
+        // Helper function for control inputs with default values
+        object GetControlValueWithPullUp(string pin, bool defaultValue)
+        {
+            if (!connectedNets.ContainsKey(pin))
+                return defaultValue;
+
+            int netId = connectedNets[pin];
+            Net net = nets[netId];
+
+            // Check if this net has PWR and GND connections
+            bool hasPower = net.Nodes.Any(n => n.Contains("PWR"));
+            bool hasGround = net.Nodes.Any(n => n.Contains("GND"));
+            bool hasResistor = net.SourceComponents.Any(c => c.StartsWith("resistor"));
+
+            // If connected to PWR through resistor but no GND → DIP switch OFF → HIGH (pull-up)
+            if (hasPower && hasResistor && !hasGround)
+            {
+                return true; // HIGH
+            }
+
+            // If connected to PWR through resistor AND GND → DIP switch ON → LOW (pulled to ground)
+            if (hasPower && hasResistor && hasGround)
+            {
+                return false; // LOW
+            }
+
+            // If not connected to anything or uninitialized
+            if (net.State == NodeState.UNINITIALIZED)
+                return null;
+
+            // Fallback to actual node state for other cases
+            return net.State == NodeState.HIGH;
+        }
+
+        // Get BCD input values using proper pull-up logic
+        object inputA = GetInputValueWithPullUp("pin7");
+        object inputB = GetInputValueWithPullUp("pin1");
+        object inputC = GetInputValueWithPullUp("pin2");
+        object inputD = GetInputValueWithPullUp("pin6");
+
+        // Get lamp test, blanking and ripple blanking inputs
+        object lt = GetControlValueWithPullUp("pin3", true);   // Default HIGH (not active)
+        object bi_rbo = GetControlValueWithPullUp("pin4", true); // Default HIGH (not active)
+        object rbi = GetControlValueWithPullUp("pin5", true);   // Default HIGH (not active)
+
+        // Check if any inputs are null (uninitialized)
+        if (inputA == null || inputB == null || inputC == null || inputD == null)
+        {
+            return (false, new
+            {
+                type = "IC7448",
+                status = "Uninitialized inputs",
+                inputs = new { A = inputA, B = inputB, C = inputC, D = inputD },
+                control = new { LT = lt, BI_RBO = bi_rbo, RBI = rbi },
+                hasVcc = true,
+                hasGnd = true,
+                inputHasConflict = inputHasConflict,
+                outputHasConflict = outputHasConflict
+            });
+        }
+
+        // Convert to bool for calculations (we know they're not null here)
+        bool boolA = (bool)inputA;
+        bool boolB = (bool)inputB;
+        bool boolC = (bool)inputC;
+        bool boolD = (bool)inputD;
+        bool boolLt = lt == null ? true : (bool)lt;
+        bool boolBiRbo = bi_rbo == null ? true : (bool)bi_rbo;
+        bool boolRbi = rbi == null ? true : (bool)rbi;
+
+        // Convert binary to decimal (0-15)
+        int value = (boolD ? 8 : 0) + (boolC ? 4 : 0) + (boolB ? 2 : 0) + (boolA ? 1 : 0);
+
+        // Get the 7-segment output pattern for this value
+        var segments = Get7SegmentPattern(value);
+
+        // Apply blanking if needed
+        if (!boolLt || !boolBiRbo || (value == 0 && !boolRbi))
+        {
+            // Blank the display (all segments off)
+            segments = new Dictionary<string, bool>
+            {
+                {"A", false}, {"B", false}, {"C", false},
+                {"D", false}, {"E", false}, {"F", false}, {"G", false}
+            };
+        }
+
+        // Map segments to IC pins
+        var pinMap = new Dictionary<string, string> {
+            {"A", "pin13"}, {"B", "pin12"}, {"C", "pin11"},
+            {"D", "pin10"}, {"E", "pin9"}, {"F", "pin15"}, {"G", "pin14"}
         };
 
-        // Get segment pattern
-        bool[] segments = value <= 9 ? segmentPatterns[value] : new bool[7]; // Blank for invalid BCD
+        // Update output pins
+        foreach (var kvp in pinMap)
+        {
+            string segment = kvp.Key;
+            string pin = kvp.Value;
 
-        // Apply control logic
-        if (!lt) // Lamp test active (LOW)
-        {
-            segments = new bool[] { true, true, true, true, true, true, true }; // All segments on
-        }
-        else if (!bi_rbo) // Blanking active (LOW)
-        {
-            segments = new bool[] { false, false, false, false, false, false, false }; // All segments off
-        }
-
-        // Update output pins (active LOW, so invert the patterns)
-        var outputPins = new[] { "pin13", "pin12", "pin11", "pin10", "pin15", "pin14", "pin9" }; // a,b,c,d,e,f,g
-        for (int i = 0; i < outputPins.Length; i++)
-        {
-            if (connectedNets.ContainsKey(outputPins[i]))
+            if (connectedNets.ContainsKey(pin))
             {
-                int netId = connectedNets[outputPins[i]];
-                string segment = "abcdefg"[i].ToString();
-
-                // 7448 outputs are active LOW, so invert the segment state
-                NodeState newState = segments[i] ? NodeState.HIGH : NodeState.LOW;
+                int netId = connectedNets[pin];
+                NodeState newState = segments[segment] ? NodeState.HIGH : NodeState.LOW;
 
                 // Only update if state changed
                 if (nets[netId].State != newState)
@@ -1136,13 +1244,58 @@ public class BreadboardSimulator : MonoBehaviour
         {
             type = "IC7448",
             status = "Initialized",
-            hasVcc = true,
-            hasGnd = true,
             inputs = new { A = inputA, B = inputB, C = inputC, D = inputD },
             control = new { LT = lt, BI_RBO = bi_rbo, RBI = rbi },
             outputs = segments,
-            value = value
+            hasVcc = true,
+            hasGnd = true,
+            value = value,
+            inputHasConflict = inputHasConflict,
+            outputHasConflict = outputHasConflict
         });
+    }
+
+    // Get 7-segment pattern for a given value (0-15)
+    private Dictionary<string, bool> Get7SegmentPattern(int value)
+    {
+        // Patterns for 0-9 and A-F
+        string[][] patterns = new string[][] {
+            // 0-9
+            new string[] {"A", "B", "C", "D", "E", "F"},      // 0
+            new string[] {"B", "C"},                          // 1
+            new string[] {"A", "B", "D", "E", "G"},           // 2
+            new string[] {"A", "B", "C", "D", "G"},           // 3
+            new string[] {"B", "C", "F", "G"},                // 4
+            new string[] {"A", "C", "D", "F", "G"},           // 5
+            new string[] {"A", "C", "D", "E", "F", "G"},      // 6
+            new string[] {"A", "B", "C"},                     // 7
+            new string[] {"A", "B", "C", "D", "E", "F", "G"}, // 8
+            new string[] {"A", "B", "C", "D", "F", "G"},      // 9
+            // A-F
+            new string[] {"A", "B", "C", "E", "F", "G"},      // A
+            new string[] {"C", "D", "E", "F", "G"},           // b
+            new string[] {"A", "D", "E", "F"},                // C
+            new string[] {"B", "C", "D", "E", "G"},           // d
+            new string[] {"A", "D", "E", "F", "G"},           // E
+            new string[] {"A", "E", "F", "G"}                 // F
+        };
+
+        // Ensure value is in range
+        value = Math.Max(0, Math.Min(15, value));
+
+        // Build the pattern
+        var result = new Dictionary<string, bool>
+        {
+            {"A", false}, {"B", false}, {"C", false},
+            {"D", false}, {"E", false}, {"F", false}, {"G", false}
+        };
+
+        foreach (string segment in patterns[value])
+        {
+            result[segment] = true;
+        }
+
+        return result;
     }
 
     // Evaluate 74138 3-to-8 line decoder IC
@@ -1163,7 +1316,7 @@ public class BreadboardSimulator : MonoBehaviour
         bool inputHasConflict = false;
         var inputPins = new[] { "pin1", "pin2", "pin3" }; // A0, A1, A2
         var inputNetIds = new List<int>();
-        
+
         foreach (var pin in inputPins)
         {
             if (connectedNets.ContainsKey(pin))
@@ -1182,7 +1335,7 @@ public class BreadboardSimulator : MonoBehaviour
         bool outputHasConflict = false;
         var outputPins = new[] { "pin15", "pin14", "pin13", "pin12", "pin11", "pin10", "pin9", "pin7" }; // O0-O7
         var outputNetIds = new List<int>();
-        
+
         foreach (var pin in outputPins)
         {
             if (connectedNets.ContainsKey(pin))
@@ -1293,87 +1446,145 @@ public class BreadboardSimulator : MonoBehaviour
         return net.State == NodeState.HIGH;
     }
 
-    // Evaluate 74148 8-to-3 line encoder IC
+    // Evaluate 74148 8-to-3 priority encoder IC
     private (bool statesChanged, object state) EvaluateIC74148(
         Dictionary<string, int> connectedNets, List<Net> nets, string componentId)
     {
         bool statesChanged = false;
 
-        // Check enable input (EI - pin 5, active LOW)
-        bool enableIn = true; // Default to HIGH (disabled)
-        if (connectedNets.ContainsKey("pin5"))
-        {
-            enableIn = nets[connectedNets["pin5"]].State == NodeState.LOW;
-        }
+        // Detect input conflicts - check if multiple input pins share the same net
+        bool inputHasConflict = false;
+        var inputPins = new[] { "pin10", "pin11", "pin12", "pin13", "pin1", "pin2", "pin3", "pin4", "pin5" }; // I0-I7, EI
+        var inputNetIds = new List<int>();
 
-        if (!enableIn)
+        foreach (var pin in inputPins)
         {
-            return (false, new { type = "IC74148", status = "Disabled - EI not active" });
-        }
-
-        // Check input pins (I0-I7, active LOW)
-        var inputPins = new[] { "pin10", "pin11", "pin12", "pin13", "pin1", "pin2", "pin3", "pin4" }; // I0-I7
-        bool[] inputs = new bool[8];
-        bool hasValidInput = false;
-
-        for (int i = 0; i < inputPins.Length; i++)
-        {
-            if (connectedNets.ContainsKey(inputPins[i]))
+            if (connectedNets.ContainsKey(pin))
             {
-                inputs[i] = nets[connectedNets[inputPins[i]]].State == NodeState.LOW; // Active LOW
-                if (inputs[i]) hasValidInput = true;
+                int netId = connectedNets[pin];
+                if (inputNetIds.Contains(netId))
+                {
+                    inputHasConflict = true;
+                    break;
+                }
+                inputNetIds.Add(netId);
             }
         }
 
-        if (!hasValidInput)
+        // Detect output conflicts - check if multiple output pins share the same net
+        bool outputHasConflict = false;
+        var outputPins = new[] { "pin9", "pin7", "pin6", "pin14", "pin15" }; // A0, A1, A2, GS, E0
+        var outputNetIds = new List<int>();
+
+        foreach (var pin in outputPins)
         {
-            return (false, new { type = "IC74148", status = "Uninitialized inputs" });
+            if (connectedNets.ContainsKey(pin))
+            {
+                int netId = connectedNets[pin];
+                if (outputNetIds.Contains(netId))
+                {
+                    outputHasConflict = true;
+                    break;
+                }
+                outputNetIds.Add(netId);
+            }
         }
 
-        // Find highest priority input (I7 has highest priority)
-        int highestPriority = -1;
+        // Get enable input (EI) - active LOW
+        bool ei = !connectedNets.ContainsKey("pin5") ||
+                  nets[connectedNets["pin5"]].State == NodeState.LOW;
+
+        // Initialize inputs array (all HIGH/inactive by default)
+        bool[] inputs = new bool[8];
+        for (int i = 0; i < 8; i++)
+        {
+            inputs[i] = true;  // Default to inactive (HIGH)
+        }
+
+        // Get input states (active LOW)
+        // Input 0 (pin 10)
+        if (connectedNets.ContainsKey("pin10"))
+            inputs[0] = nets[connectedNets["pin10"]].State == NodeState.LOW;
+
+        // Input 1 (pin 11)
+        if (connectedNets.ContainsKey("pin11"))
+            inputs[1] = nets[connectedNets["pin11"]].State == NodeState.LOW;
+
+        // Input 2 (pin 12)
+        if (connectedNets.ContainsKey("pin12"))
+            inputs[2] = nets[connectedNets["pin12"]].State == NodeState.LOW;
+
+        // Input 3 (pin 13)
+        if (connectedNets.ContainsKey("pin13"))
+            inputs[3] = nets[connectedNets["pin13"]].State == NodeState.LOW;
+
+        // Input 4 (pin 1)
+        if (connectedNets.ContainsKey("pin1"))
+            inputs[4] = nets[connectedNets["pin1"]].State == NodeState.LOW;
+
+        // Input 5 (pin 2)
+        if (connectedNets.ContainsKey("pin2"))
+            inputs[5] = nets[connectedNets["pin2"]].State == NodeState.LOW;
+
+        // Input 6 (pin 3)
+        if (connectedNets.ContainsKey("pin3"))
+            inputs[6] = nets[connectedNets["pin3"]].State == NodeState.LOW;
+
+        // Input 7 (pin 4)
+        if (connectedNets.ContainsKey("pin4"))
+            inputs[7] = nets[connectedNets["pin4"]].State == NodeState.LOW;
+
+        // Find highest priority active input (7 is highest, 0 is lowest)
+        int highestActive = -1;
         for (int i = 7; i >= 0; i--)
         {
-            if (inputs[i])
+            if (!inputs[i])  // Active LOW, so !input means active
             {
-                highestPriority = i;
+                highestActive = i;
                 break;
             }
         }
 
-        // Generate outputs
-        bool a0 = false, a1 = false, a2 = false;
-        bool gs = false; // Group Select (active LOW when any input is active)
-        bool e0 = true;  // Enable Output (active LOW when enabled and any input active)
+        // Calculate outputs (all active LOW)
+        bool a0, a1, a2, gs, e0;
 
-        if (highestPriority >= 0)
+        // If EI is inactive (HIGH) or no input is active
+        if (!ei || highestActive == -1)
         {
-            // Convert priority to binary (inverted for 74148)
-            a0 = (highestPriority & 1) == 0;  // Inverted
-            a1 = (highestPriority & 2) == 0;  // Inverted
-            a2 = (highestPriority & 4) == 0;  // Inverted
-            gs = true;  // Active LOW, so true means LOW output
-            e0 = true;  // Active LOW, so true means LOW output
+            a0 = a1 = a2 = false;
+            gs = true;
+            e0 = false;
+        }
+        else
+        {
+            // Encode priority input to binary (complement of bits)
+            a0 = (highestActive & 1) != 0;  // Bit 0
+            a1 = (highestActive & 2) != 0;  // Bit 1
+            a2 = (highestActive & 4) != 0;  // Bit 2
+            gs = false;                     // GS LOW (active)
+            e0 = true;                      // E0 HIGH (inactive)
         }
 
-        // Update output pins
-        var outputPins = new Dictionary<string, bool>
+        // Output pins
+        var outputs = new Dictionary<string, (string pin, bool value)>
         {
-            { "pin6", a2 },  // A2
-            { "pin7", a1 },  // A1
-            { "pin9", a0 },  // A0
-            { "pin14", gs }, // GS
-            { "pin15", e0 }  // EO
+            {"A0", ("pin9", a0)},
+            {"A1", ("pin7", a1)},
+            {"A2", ("pin6", a2)},
+            {"GS", ("pin14", gs)},
+            {"E0", ("pin15", e0)}
         };
 
-        foreach (var output in outputPins)
+        // Update output pins
+        foreach (var kvp in outputs)
         {
-            if (connectedNets.ContainsKey(output.Key))
-            {
-                int netId = connectedNets[output.Key];
+            string pinName = kvp.Value.pin;
+            bool outputValue = kvp.Value.value;
 
-                // Outputs are active LOW
-                NodeState newState = output.Value ? NodeState.LOW : NodeState.HIGH;
+            if (connectedNets.ContainsKey(pinName))
+            {
+                int netId = connectedNets[pinName];
+                NodeState newState = outputValue ? NodeState.HIGH : NodeState.LOW;
 
                 // Only update if state changed
                 if (nets[netId].State != newState)
@@ -1389,13 +1600,14 @@ public class BreadboardSimulator : MonoBehaviour
         return (statesChanged, new
         {
             type = "IC74148",
-            status = "Initialized",
+            inputsState = inputs,
+            enableIn = ei,
+            highestPriority = highestActive,
             hasVcc = true,
             hasGnd = true,
-            enableIn = enableIn,
-            inputs = inputs,
             outputs = new { A0 = a0, A1 = a1, A2 = a2, GS = gs, E0 = e0 },
-            highestPriority = highestPriority
+            inputHasConflict = inputHasConflict,
+            outputHasConflict = outputHasConflict
         });
     }
 }
