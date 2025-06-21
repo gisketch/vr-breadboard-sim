@@ -1022,7 +1022,13 @@ public class BreadboardSimulator : MonoBehaviour
 
         if (!hasVcc || !hasGnd)
         {
-            return (false, new { type = icType, error = "Missing power connections" });
+            return (false, new
+            {
+                type = icType,
+                error = "Missing power connections",
+                hasVcc = hasVcc,
+                hasGnd = hasGnd
+            });
         }
 
         // Delegate to specific IC evaluation methods
@@ -1033,7 +1039,7 @@ public class BreadboardSimulator : MonoBehaviour
             case "IC74138":
                 return EvaluateIC74138(connectedNets, nets, componentId);
             case "IC74148":
-                return EvaluateIC74148(connectedNets, nets, componentId);
+                return EvaluateIC74148(connectedNets, nets, componentId, hasVcc, hasGnd);
             default:
                 return (false, new { type = icType, error = "Unsupported IC type" });
         }
@@ -1448,7 +1454,7 @@ public class BreadboardSimulator : MonoBehaviour
 
     // Evaluate 74148 8-to-3 priority encoder IC
     private (bool statesChanged, object state) EvaluateIC74148(
-        Dictionary<string, int> connectedNets, List<Net> nets, string componentId)
+        Dictionary<string, int> connectedNets, List<Net> nets, string componentId, bool hasVcc = true, bool hasGnd = true)
     {
         bool statesChanged = false;
 
@@ -1501,38 +1507,38 @@ public class BreadboardSimulator : MonoBehaviour
             inputs[i] = true;  // Default to inactive (HIGH)
         }
 
-        // Get input states (active LOW)
+        // Get input states using GetInputState (active LOW)
         // Input 0 (pin 10)
         if (connectedNets.ContainsKey("pin10"))
-            inputs[0] = nets[connectedNets["pin10"]].State == NodeState.LOW;
+            inputs[0] = !GetInputState(connectedNets["pin10"], nets);
 
         // Input 1 (pin 11)
         if (connectedNets.ContainsKey("pin11"))
-            inputs[1] = nets[connectedNets["pin11"]].State == NodeState.LOW;
+            inputs[1] = !GetInputState(connectedNets["pin11"], nets);
 
         // Input 2 (pin 12)
         if (connectedNets.ContainsKey("pin12"))
-            inputs[2] = nets[connectedNets["pin12"]].State == NodeState.LOW;
+            inputs[2] = !GetInputState(connectedNets["pin12"], nets);
 
         // Input 3 (pin 13)
         if (connectedNets.ContainsKey("pin13"))
-            inputs[3] = nets[connectedNets["pin13"]].State == NodeState.LOW;
+            inputs[3] = !GetInputState(connectedNets["pin13"], nets);
 
         // Input 4 (pin 1)
         if (connectedNets.ContainsKey("pin1"))
-            inputs[4] = nets[connectedNets["pin1"]].State == NodeState.LOW;
+            inputs[4] = !GetInputState(connectedNets["pin1"], nets);
 
         // Input 5 (pin 2)
         if (connectedNets.ContainsKey("pin2"))
-            inputs[5] = nets[connectedNets["pin2"]].State == NodeState.LOW;
+            inputs[5] = !GetInputState(connectedNets["pin2"], nets);
 
         // Input 6 (pin 3)
         if (connectedNets.ContainsKey("pin3"))
-            inputs[6] = nets[connectedNets["pin3"]].State == NodeState.LOW;
+            inputs[6] = !GetInputState(connectedNets["pin3"], nets);
 
         // Input 7 (pin 4)
         if (connectedNets.ContainsKey("pin4"))
-            inputs[7] = nets[connectedNets["pin4"]].State == NodeState.LOW;
+            inputs[7] = !GetInputState(connectedNets["pin4"], nets);
 
         // Find highest priority active input (7 is highest, 0 is lowest)
         int highestActive = -1;

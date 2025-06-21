@@ -165,17 +165,73 @@ public class ExperimentDefinitions
             Id = 3,
             Name = "IC 74148 Encoder",
             Description = "Connect switches to a 74148 IC to encode 8 inputs to 3-bit binary output.",
-            TotalInstructions = 8,
+            TotalInstructions = 49,
             InstructionDescriptions = new Dictionary<int, string>
             {
-                [0] = "Place the IC 74148 on the breadboard",
-                [1] = "Connect VCC (pin 16) to the positive power rail",
-                [2] = "Connect GND (pin 8) to the negative power rail",
-                [3] = "Connect input pins I0-I7 (pins 10,11,12,13,1,2,3,4) to DIP switches",
-                [4] = "Connect output pins A0,A1,A2 (pins 6,7,9) to LEDs through resistors",
-                [5] = "Connect EI (pin 5) to LOW to enable the encoder",
-                [6] = "Test various input combinations",
-                [7] = "Verify 3-bit binary output corresponds to highest priority input"
+                // 1.0 Create pull-up resistor inputs (8 sets)
+                [0] = "Add a resistor and connect it to any power terminal",
+                [1] = "Add a switch and connect it in series with the resistor (input 1)",
+                [2] = "Ground the switch",
+                [3] = "Add a second resistor and connect it to any power terminal",
+                [4] = "Add a second switch and connect it in series with the second resistor (input 2)",
+                [5] = "Ground the second switch",
+                [6] = "Add a third resistor and connect it to any power terminal",
+                [7] = "Add a third switch and connect it in series with the third resistor (input 3)",
+                [8] = "Ground the third switch",
+                [9] = "Add a fourth resistor and connect it to any power terminal",
+                [10] = "Add a fourth switch and connect it in series with the fourth resistor (input 4)",
+                [11] = "Ground the fourth switch",
+                [12] = "Add a fifth resistor and connect it to any power terminal",
+                [13] = "Add a fifth switch and connect it in series with the fifth resistor (input 5)",
+                [14] = "Ground the fifth switch",
+                [15] = "Add a sixth resistor and connect it to any power terminal",
+                [16] = "Add a sixth switch and connect it in series with the sixth resistor (input 6)",
+                [17] = "Ground the sixth switch",
+                [18] = "Add a seventh resistor and connect it to any power terminal",
+                [19] = "Add a seventh switch and connect it in series with the seventh resistor (input 7)",
+                [20] = "Ground the seventh switch",
+                [21] = "Add an eighth resistor and connect it to any power terminal",
+                [22] = "Add an eighth switch and connect it in series with the eighth resistor (input 8)",
+                [23] = "Ground the eighth switch",
+
+                // Add IC74148
+                [24] = "Add IC74148 to the breadboard",
+
+                // 1.1 Connect IC74148 connections
+                [25] = "Ground IC74148 to Ground Breadboard",
+                [26] = "VCC IC74148 to VCC Breadboard",
+
+                // Add 3 LEDs
+                [27] = "Add 3 LEDs to the breadboard",
+
+                // Ground LEDs and connect to outputs
+                [28] = "Ground the LEDs",
+                [29] = "IC74148 A0 to LED0",
+                [30] = "IC74148 A1 to LED1",
+                [31] = "IC74148 A2 to LED2",
+
+                // 1.2 Connect IC74148 enable
+                [32] = "IC74148 EI set to LOW",
+
+                // 1.3 Connect IC74148 input connections
+                [33] = "IC74148 I0 to Switch1",
+                [34] = "IC74148 I1 to Switch2",
+                [35] = "IC74148 I2 to Switch3",
+                [36] = "IC74148 I3 to Switch4",
+                [37] = "IC74148 I4 to Switch5",
+                [38] = "IC74148 I5 to Switch6",
+                [39] = "IC74148 I6 to Switch7",
+                [40] = "IC74148 I7 to Switch8",
+
+                // 2. Display outputs on LEDs (TRACK)
+                [41] = "Set inputs to display 000",
+                [42] = "Set inputs to display 001",
+                [43] = "Set inputs to display 010",
+                [44] = "Set inputs to display 011",
+                [45] = "Set inputs to display 100",
+                [46] = "Set inputs to display 101",
+                [47] = "Set inputs to display 110",
+                [48] = "Set inputs to display 111"
             }
         };
         _experiments[encoderExperiment.Id] = encoderExperiment;
