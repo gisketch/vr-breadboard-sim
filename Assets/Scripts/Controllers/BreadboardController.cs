@@ -27,6 +27,12 @@ namespace Mirror
         [SyncVar]
         public string score = "";
 
+        // Add per-breadboard experiment tracking
+        [System.NonSerialized]
+        public ExperimentDefinitions experimentDefinitions;
+        [System.NonSerialized]
+        public ExperimentEvaluator experimentEvaluator;
+
         // Animation related fields
         private Transform breadboardTransform;
         [SerializeField] private Vector3 idleBreadboardPosition;
@@ -57,6 +63,10 @@ namespace Mirror
                 Debug.LogError("Could not find 'Breadboard' child object. Using parent instead.");
                 breadboardTransform = transform;
             }
+            
+            // Initialize per-breadboard experiment tracking
+            experimentDefinitions = new ExperimentDefinitions();
+            experimentEvaluator = new ExperimentEvaluator(experimentDefinitions);
         }
 
         public override void OnStartClient()

@@ -16,18 +16,10 @@ public class BreadboardSimulator : MonoBehaviour
 
     public static BreadboardSimulator Instance { get; private set; }
 
-    // Experiment management
-    private ExperimentDefinitions experimentDefinitions;
-    private ExperimentEvaluator experimentEvaluator;
-
     private void Awake()
     {
         Instance = this;
         Debug.Log("BreadboardSimulator Awake called");
-        experimentDefinitions = new ExperimentDefinitions();
-        experimentEvaluator = new ExperimentEvaluator(experimentDefinitions);
-        Debug.Log($"Current experiment ID after initialization: {experimentDefinitions.CurrentExperimentId}");
-        Debug.Log($"Available experiments: {experimentDefinitions.GetExperiments().Count}");
     }
 
     public enum NodeState
@@ -214,7 +206,7 @@ public class BreadboardSimulator : MonoBehaviour
         };
 
         // Evaluate experiment using the new experiment system
-        result.ExperimentResult = experimentEvaluator.EvaluateExperiment(result, components);
+        result.ExperimentResult = bc.experimentEvaluator.EvaluateExperiment(result, components);
 
         // UI Updates
         UpdateUI(bc, result);
@@ -241,13 +233,13 @@ public class BreadboardSimulator : MonoBehaviour
         //Add main instruction
         GameObject taskMsg = Instantiate(taskText);
 
-        bool isCompleted = ((float)experimentDefinitions.GetCompletedInstructionsCount(experimentDefinitions.CurrentExperimentId) / experimentDefinitions.GetTotalInstructionsCount(experimentDefinitions.CurrentExperimentId)) == 1f;
+        bool isCompleted = ((float)bc.experimentDefinitions.GetCompletedInstructionsCount(bc.experimentDefinitions.CurrentExperimentId) / bc.experimentDefinitions.GetTotalInstructionsCount(bc.experimentDefinitions.CurrentExperimentId)) == 1f;
 
         taskMsg.transform.SetParent(bc.labMessagesTransform);
         taskMsg.transform.localScale = Vector3.one;
         taskMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         taskMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
-        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {experimentDefinitions.CurrentExperimentId} Completed!" : result.ExperimentResult.MainInstruction;
+        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {bc.experimentDefinitions.CurrentExperimentId} Completed!" : result.ExperimentResult.MainInstruction;
 
         //Append messages
         foreach (string msg in result.ExperimentResult.Messages)
@@ -276,7 +268,7 @@ public class BreadboardSimulator : MonoBehaviour
         diagram74148.SetActive(false);
 
         // Activate the appropriate diagram based on current experiment
-        switch (experimentDefinitions.CurrentExperimentId)
+        switch (bc.experimentDefinitions.CurrentExperimentId)
         {
             case 1: // IC 74138 Decoder experiment
                 diagram74138.SetActive(true);
@@ -295,7 +287,7 @@ public class BreadboardSimulator : MonoBehaviour
         float maxWidthSlider = 160f;
 
         // Calculate the target fill amount (0 to 1)
-        float targetFillAmount = (float)experimentDefinitions.GetCompletedInstructionsCount(experimentDefinitions.CurrentExperimentId) / experimentDefinitions.GetTotalInstructionsCount(experimentDefinitions.CurrentExperimentId);
+        float targetFillAmount = (float)bc.experimentDefinitions.GetCompletedInstructionsCount(bc.experimentDefinitions.CurrentExperimentId) / bc.experimentDefinitions.GetTotalInstructionsCount(bc.experimentDefinitions.CurrentExperimentId);
         float currentWidth = fillSlider.sizeDelta.x;
         float targetWidth = maxWidthSlider * targetFillAmount;
 
@@ -309,7 +301,7 @@ public class BreadboardSimulator : MonoBehaviour
 
         //Update slider text
         TMP_Text completionText = experimentName.transform.Find("Task Completion Text").GetComponent<TMP_Text>();
-        completionText.text = $"COMPLETED {experimentDefinitions.GetCompletedInstructionsCount(experimentDefinitions.CurrentExperimentId)}/{experimentDefinitions.GetTotalInstructionsCount(experimentDefinitions.CurrentExperimentId)}";
+        completionText.text = $"COMPLETED {bc.experimentDefinitions.GetCompletedInstructionsCount(bc.experimentDefinitions.CurrentExperimentId)}/{bc.experimentDefinitions.GetTotalInstructionsCount(bc.experimentDefinitions.CurrentExperimentId)}";
 
         //Clear button events here
         Button prevExperiment = experimentName.transform.Find("PrevExperiment").GetComponent<Button>();
@@ -320,21 +312,21 @@ public class BreadboardSimulator : MonoBehaviour
 
         Debug.Log($"Updating score from simulator");
         bc.CmdUpdateScore($@"Student {bc.studentId}
- - experiment 1 : {experimentDefinitions.GetCompletedInstructionsCount(1)}/{experimentDefinitions.GetTotalInstructionsCount(1)}
- - experiment 2 : {experimentDefinitions.GetCompletedInstructionsCount(2)}/{experimentDefinitions.GetTotalInstructionsCount(2)}
- - experiment 3 : {experimentDefinitions.GetCompletedInstructionsCount(3)}/{experimentDefinitions.GetTotalInstructionsCount(3)}");
+ - experiment 1 : {bc.experimentDefinitions.GetCompletedInstructionsCount(1)}/{bc.experimentDefinitions.GetTotalInstructionsCount(1)}
+ - experiment 2 : {bc.experimentDefinitions.GetCompletedInstructionsCount(2)}/{bc.experimentDefinitions.GetTotalInstructionsCount(2)}
+ - experiment 3 : {bc.experimentDefinitions.GetCompletedInstructionsCount(3)}/{bc.experimentDefinitions.GetTotalInstructionsCount(3)}");
 
         //Add button events
         prevExperiment.onClick.AddListener(() =>
         {
-            experimentDefinitions.PreviousExperiment();
+            bc.experimentDefinitions.PreviousExperiment();
             BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
         });
 
         //Add button events
         nextExperiment.onClick.AddListener(() =>
         {
-            experimentDefinitions.NextExperiment();
+            bc.experimentDefinitions.NextExperiment();
             BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
         });
     }
@@ -347,7 +339,7 @@ public class BreadboardSimulator : MonoBehaviour
         componentMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         componentMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
 
-        string componentGuideText = GetComponentGuideText(experimentDefinitions.CurrentExperimentId);
+        string componentGuideText = GetComponentGuideText(bc.experimentDefinitions.CurrentExperimentId);
         componentMsg.transform.Find("Message").GetComponent<TMP_Text>().text = componentGuideText;
     }
 
