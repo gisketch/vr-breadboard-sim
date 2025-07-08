@@ -14,20 +14,34 @@ public class BreadboardSimulator : MonoBehaviour
     public GameObject taskText;
     public GameObject componentText;
 
-    public static BreadboardSimulator Instance { get; private set; }
-
-    // Experiment management
+    // Each simulator instance has its own experiment management
     private ExperimentDefinitions experimentDefinitions;
     private ExperimentEvaluator experimentEvaluator;
 
-    private void Awake()
+    // Reference to the breadboard controller this simulator belongs to
+    private BreadboardController associatedController;
+
+    // Initialize this simulator instance for a specific controller
+    public void Initialize(BreadboardController controller)
     {
-        Instance = this;
-        Debug.Log("BreadboardSimulator Awake called");
+        associatedController = controller;
+
+        // Load prefabs from Resources folder
+        warningText = Resources.Load<GameObject>("Warning Text");
+        taskText = Resources.Load<GameObject>("Task Text");
+        componentText = Resources.Load<GameObject>("Component Text");
+
+        Debug.Log($"BreadboardSimulator initialized for controller {controller.studentId}");
         experimentDefinitions = new ExperimentDefinitions();
         experimentEvaluator = new ExperimentEvaluator(experimentDefinitions);
         Debug.Log($"Current experiment ID after initialization: {experimentDefinitions.CurrentExperimentId}");
         Debug.Log($"Available experiments: {experimentDefinitions.GetExperiments().Count}");
+    }
+
+    // Add getter for experiment definitions (for external access)
+    public ExperimentDefinitions GetExperimentDefinitions()
+    {
+        return experimentDefinitions;
     }
 
     public enum NodeState
@@ -156,8 +170,23 @@ public class BreadboardSimulator : MonoBehaviour
     // Main entry point that takes JSON state and returns simulation results
     public SimulationResult Run(string jsonState, BreadboardController bc)
     {
+        // Ensure this simulator is only used by its associated controller
+        if (bc != associatedController)
+        {
+            Debug.LogError($"Simulator mismatch: Expected controller {associatedController?.studentId}, got {bc.studentId}");
+            return new SimulationResult
+            {
+                Errors = new List<BreadboardError> {
+                    new BreadboardError {
+                        ErrorType = "SimulatorError",
+                        Description = "Simulator instance mismatch"
+                    }
+                }
+            };
+        }
+
         // Debug the input JSON
-        Debug.Log($"Running simulation with JSON: {jsonState}");
+        Debug.Log($"Running simulation for student {bc.studentId} with JSON: {jsonState}");
 
         // 1. Parse JSON (safely)
         JObject parsedJson;
@@ -213,11 +242,14 @@ public class BreadboardSimulator : MonoBehaviour
             Errors = errors
         };
 
-        // Evaluate experiment using the new experiment system
+        // Evaluate experiment using this instance's experiment system
         result.ExperimentResult = experimentEvaluator.EvaluateExperiment(result, components);
 
-        // UI Updates
-        UpdateUI(bc, result);
+        // UI Updates - only for the associated controller with authority
+        if (bc.hasAuthority && bc == associatedController)
+        {
+            UpdateUI(bc, result);
+        }
 
         // Debug component states
         foreach (var kvp in result.ComponentStates)
@@ -318,7 +350,7 @@ public class BreadboardSimulator : MonoBehaviour
         prevExperiment.onClick.RemoveAllListeners();
         nextExperiment.onClick.RemoveAllListeners();
 
-        Debug.Log($"Updating score from simulator");
+        Debug.Log($"Updating score from simulator for student {bc.studentId}");
         bc.CmdUpdateScore($@"Student {bc.studentId}
  - experiment 1 : {experimentDefinitions.GetCompletedInstructionsCount(1)}/{experimentDefinitions.GetTotalInstructionsCount(1)}
  - experiment 2 : {experimentDefinitions.GetCompletedInstructionsCount(2)}/{experimentDefinitions.GetTotalInstructionsCount(2)}

@@ -334,6 +334,8 @@ public class BreadboardStateUtils : MonoBehaviour
     }
 
     // Visualization Methods
+    // In the VisualizeBreadboard method, replace the simulator access:
+
     public void VisualizeBreadboard(BreadboardController bc)
     {
         Debug.Log("Visualizing breadboard");
@@ -354,11 +356,11 @@ public class BreadboardStateUtils : MonoBehaviour
         // Convert SyncDictionary to JSON for simulation
         string breadboardStateJson = ConvertStateToJson(bc.breadboardComponents);
 
-        // Run simulation
-        var simulator = BreadboardSimulator.Instance;
+        // Run simulation using the controller's specific simulator instance
+        var simulator = bc.GetSimulatorInstance();
         if (simulator != null)
         {
-            Debug.Log("Running breadboard simulation...");
+            Debug.Log($"Running breadboard simulation for student {bc.studentId}...");
             var result = simulator.Run(breadboardStateJson, bc);
 
             // Handle the result
@@ -381,7 +383,7 @@ public class BreadboardStateUtils : MonoBehaviour
         }
         else
         {
-            Debug.LogError("BreadboardSimulator instance not found!");
+            Debug.LogError($"BreadboardSimulator instance not found for controller {bc.studentId}!");
         }
     }
 
@@ -861,31 +863,5 @@ public class BreadboardStateUtils : MonoBehaviour
             Debug.LogError("Resistor prefab is missing Resistor component");
             Destroy(newResistor);
         }
-    }
-
-    // Add these new methods for counter management
-    public (int wire, int led, int sevenSeg, int ic, int dipSwitch, int resistor) GetCounters()
-    {
-        return (wireCounter, ledCounter, sevenSegCounter, icCounter, dipSwitchCounter, resistorCounter);
-    }
-
-    public void SetCounters(int wire, int led, int sevenSeg, int ic, int dipSwitch, int resistor)
-    {
-        wireCounter = wire;
-        ledCounter = led;
-        sevenSegCounter = sevenSeg;
-        icCounter = ic;
-        dipSwitchCounter = dipSwitch;
-        resistorCounter = resistor;
-    }
-
-    public void ResetCounters()
-    {
-        wireCounter = 0;
-        ledCounter = 0;
-        sevenSegCounter = 0;
-        icCounter = 0;
-        dipSwitchCounter = 0;
-        resistorCounter = 0;
     }
 }

@@ -991,7 +991,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &660119398
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6113,6 +6113,31 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 495793471140365177, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_ChildForceExpandHeight
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 495793471140365177, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_ChildForceExpandWidth
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 495793471140365177, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_ChildScaleWidth
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 495793471140365177, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_ChildScaleHeight
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 495793471140365177, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_Spacing
+      value: 24
+      objectReference: {fileID: 0}
     - target: {fileID: 495793471140365178, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
       propertyPath: m_AnchorMin.y
@@ -6141,7 +6166,7 @@ PrefabInstance:
     - target: {fileID: 495793471140365178, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
       propertyPath: m_SizeDelta.y
-      value: 262.7
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 495793471721299016, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
@@ -6166,7 +6191,7 @@ PrefabInstance:
     - target: {fileID: 495793471721299016, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
       propertyPath: m_SizeDelta.y
-      value: 65.31
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 495793471721299017, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
@@ -6181,6 +6206,16 @@ PrefabInstance:
     - target: {fileID: 495793472472610591, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
       propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 495793472472610591, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_ChildScaleHeight
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 495793472472610591, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: m_ChildControlHeight
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 495793472554037254, guid: 638745f0d6461bb409de959b0198580d,
@@ -6254,6 +6289,33 @@ PrefabInstance:
       propertyPath: networkManager
       value: 
       objectReference: {fileID: 723650112}
+    - target: {fileID: 495793472554037254, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: tutorialPrefab
+      value: 
+      objectReference: {fileID: 76554350670834412, guid: 7ef3697af799a7b4987744216fa10f43,
+        type: 3}
+    - target: {fileID: 495793472554037254, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: instructorTutorialImage
+      value: 
+      objectReference: {fileID: 21300000, guid: 9c8c151a9ff77144d9678648e435f02c,
+        type: 3}
+    - target: {fileID: 495793472554037254, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: studentTutorialImage
+      value: 
+      objectReference: {fileID: 21300000, guid: 60dee605cef34744a8321e587545a171,
+        type: 3}
+    - target: {fileID: 495793472554037254, guid: 638745f0d6461bb409de959b0198580d,
+        type: 3}
+      propertyPath: studentInstructions
+      value: "<b><size=32>Student Controls</size></b>\n\n\n<b><size=24>Movement:</size></b>\n\n\u2022
+        <b>Joystick</b> - Move\n\u2022 <b>Head</b> - Look around\n\n<b><size=24>Interaction:</size></b>\n\n\u2022
+        <b>A Button</b> - Interact/Place\n\u2022 <b>B Button</b> - Cancel/Remove\n\u2022
+        <b>C Button</b> - Ascend\n\u2022 <b>D Button</b> - Descend\n\u2022 <b>Bumper</b>
+        -  Interact/Place\n\u2022 <b>Trigger</b> - Cancel/Remove"
+      objectReference: {fileID: 0}
     - target: {fileID: 495793472554037256, guid: 638745f0d6461bb409de959b0198580d,
         type: 3}
       propertyPath: m_Name
