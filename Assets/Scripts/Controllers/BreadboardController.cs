@@ -23,9 +23,13 @@ namespace Mirror
 
         [SyncVar(hook = nameof(OnStudentIdChanged))]
         public int studentId = 0;
+
         [TextArea(10, 20)]
         [SyncVar]
         public string score = "";
+
+        [SyncVar(hook = nameof(OnCurrentExperimentIdChanged))]
+        public int currentExperimentId = 1;
 
         private BreadboardSimulator simulatorInstance;
 
@@ -117,6 +121,36 @@ namespace Mirror
                     BreadboardManager.Instance.NotifySimulationStarted(gameObject);
                 }
             }
+        }
+
+        void OnCurrentExperimentIdChanged(int oldValue, int newValue)
+        {
+            Debug.Log($"Experiment ID changed from {oldValue} to {newValue} on breadboard {studentId}");
+
+            // Update the local experiment definitions
+            if (simulatorInstance != null)
+            {
+                ExperimentDefinitions expDefs = simulatorInstance.GetExperimentDefinitions();
+                if (expDefs != null)
+                {
+                    expDefs.CurrentExperimentId = newValue;
+
+                    // Force a UI update if this is the spectated breadboard
+                    InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+                    if (spectatorController != null && spectatorController.IsSpectating)
+                    {
+                        // Trigger UI refresh
+                        string currentState = BreadboardStateUtils.Instance.ConvertStateToJson(breadboardComponents);
+                        simulatorInstance.Run(currentState, this);
+                    }
+                }
+            }
+        }
+
+        [Command]
+        public void CmdUpdateExperimentId(int newExperimentId)
+        {
+            currentExperimentId = newExperimentId;
         }
 
         void Start()
@@ -558,4 +592,5 @@ namespace Mirror
         public string Key;
         public BreadboardComponentData Value;
     }
+
 }

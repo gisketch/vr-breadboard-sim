@@ -388,7 +388,7 @@ public class BreadboardStateUtils : MonoBehaviour
     }
 
     // Convert SyncDictionary to JSON format expected by simulator
-    private string ConvertStateToJson(SyncDictionary<string, BreadboardComponentData> components)
+    public string ConvertStateToJson(SyncDictionary<string, BreadboardComponentData> components)
     {
         JObject state = new JObject();
         JObject componentsObj = new JObject();

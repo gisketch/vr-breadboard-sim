@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Mirror;
 using UnityEngine;
 
 public class ExperimentDefinitions
@@ -7,12 +8,14 @@ public class ExperimentDefinitions
     private Dictionary<int, ExperimentDefinition> _experiments;
     private Dictionary<int, HashSet<int>> _completedInstructions;
     private Dictionary<int, int> _lastInstructionIndices = new Dictionary<int, int>();
+    private BreadboardController _associatedController;
 
     public int CurrentExperimentId { get; set; } = 1;
     public int CurrentInstructionIndex { get; set; } = 0;
 
-    public ExperimentDefinitions()
+    public ExperimentDefinitions(BreadboardController controller)
     {
+        _associatedController = controller;
         Debug.Log("ExperimentDefinitions constructor called");
         InitializeExperiments();
     }
@@ -281,22 +284,22 @@ public class ExperimentDefinitions
         // Save current instruction index for the current experiment
         _lastInstructionIndices[CurrentExperimentId] = CurrentInstructionIndex;
 
-        // Find the next valid experiment ID
-        int nextExperimentId = CurrentExperimentId + 1;
-        while (nextExperimentId <= _experiments.Keys.Max() && !_experiments.ContainsKey(nextExperimentId))
+        if (CurrentExperimentId < _experiments.Count)
         {
-            nextExperimentId++;
-        }
-
-        // If we found a valid next experiment
-        if (_experiments.ContainsKey(nextExperimentId))
-        {
-            CurrentExperimentId = nextExperimentId;
+            CurrentExperimentId++;
 
             // Restore the last instruction index for this experiment, or default to 0
             CurrentInstructionIndex = _lastInstructionIndices.ContainsKey(CurrentExperimentId)
                 ? _lastInstructionIndices[CurrentExperimentId]
                 : 0;
+
+            // Use the associated controller instead of FindObjectOfType
+            if (_associatedController != null && _associatedController.hasAuthority)
+            {
+                _associatedController.CmdUpdateExperimentId(CurrentExperimentId);
+            }
+
+            Debug.Log($"Moved to experiment {CurrentExperimentId}");
         }
     }
 
@@ -305,39 +308,22 @@ public class ExperimentDefinitions
         // Save current instruction index for the current experiment
         _lastInstructionIndices[CurrentExperimentId] = CurrentInstructionIndex;
 
-        // Find the previous valid experiment ID
-        int prevExperimentId = CurrentExperimentId - 1;
-        while (prevExperimentId >= _experiments.Keys.Min() && !_experiments.ContainsKey(prevExperimentId))
+        if (CurrentExperimentId > 1)
         {
-            prevExperimentId--;
-        }
-
-        // If we found a valid previous experiment
-        if (_experiments.ContainsKey(prevExperimentId))
-        {
-            CurrentExperimentId = prevExperimentId;
+            CurrentExperimentId--;
 
             // Restore the last instruction index for this experiment, or default to 0
             CurrentInstructionIndex = _lastInstructionIndices.ContainsKey(CurrentExperimentId)
                 ? _lastInstructionIndices[CurrentExperimentId]
                 : 0;
-        }
-    }
 
-    public void NextInstruction()
-    {
-        var experiment = GetCurrentExperiment();
-        if (experiment != null && CurrentInstructionIndex < experiment.TotalInstructions - 1)
-        {
-            CurrentInstructionIndex++;
-        }
-    }
+            // Use the associated controller instead of FindObjectOfType
+            if (_associatedController != null && _associatedController.hasAuthority)
+            {
+                _associatedController.CmdUpdateExperimentId(CurrentExperimentId);
+            }
 
-    public void PreviousInstruction()
-    {
-        if (CurrentInstructionIndex > 0)
-        {
-            CurrentInstructionIndex--;
+            Debug.Log($"Moved to experiment {CurrentExperimentId}");
         }
     }
 }

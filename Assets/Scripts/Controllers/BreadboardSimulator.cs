@@ -32,7 +32,7 @@ public class BreadboardSimulator : MonoBehaviour
         componentText = Resources.Load<GameObject>("Component Text");
 
         Debug.Log($"BreadboardSimulator initialized for controller {controller.studentId}");
-        experimentDefinitions = new ExperimentDefinitions();
+        experimentDefinitions = new ExperimentDefinitions(controller);
         experimentEvaluator = new ExperimentEvaluator(experimentDefinitions);
         Debug.Log($"Current experiment ID after initialization: {experimentDefinitions.CurrentExperimentId}");
         Debug.Log($"Available experiments: {experimentDefinitions.GetExperiments().Count}");
@@ -245,40 +245,15 @@ public class BreadboardSimulator : MonoBehaviour
         // Evaluate experiment using this instance's experiment system
         result.ExperimentResult = experimentEvaluator.EvaluateExperiment(result, components);
 
-        // Debug logging for UI update conditions
-        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
-        
-        Debug.Log($"[DEBUG] SimulateBreadboard called for bc.studentId: {bc.studentId}");
-        Debug.Log($"[DEBUG] bc.hasAuthority: {bc.hasAuthority}");
-        Debug.Log($"[DEBUG] bc == associatedController: {bc == associatedController}");
-        Debug.Log($"[DEBUG] spectatorController found: {spectatorController != null}");
-        
-        if (spectatorController != null)
-        {
-            Debug.Log($"[DEBUG] spectatorController.IsSpectating: {spectatorController.IsSpectating}");
-            Debug.Log($"[DEBUG] Current role: {GameManager.Instance.CurrentRole}");
-            Debug.Log($"[DEBUG] Is instructor: {GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor}");
-        }
-
         // UI Updates - check for authority OR if instructor is spectating this breadboard
-        bool hasAuthority = bc.hasAuthority && bc == associatedController;
-        bool isSpectatingThisBreadboard = spectatorController != null && 
-                                         spectatorController.IsSpectating &&
-                                         GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor &&
-                                         bc == associatedController;
-        
-        Debug.Log($"[DEBUG] hasAuthority condition: {hasAuthority}");
-        Debug.Log($"[DEBUG] isSpectatingThisBreadboard condition: {isSpectatingThisBreadboard}");
-        Debug.Log($"[DEBUG] Will call UpdateUI: {hasAuthority || isSpectatingThisBreadboard}");
-        
-        if (hasAuthority || isSpectatingThisBreadboard)
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        bool isInstructorSpectating = spectatorController != null &&
+                                     spectatorController.IsSpectating &&
+                                     GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor;
+
+        if ((bc.hasAuthority && bc == associatedController) || isInstructorSpectating)
         {
-            Debug.Log($"[DEBUG] Calling UpdateUI for bc.studentId: {bc.studentId}");
             UpdateUI(bc, result);
-        }
-        else
-        {
-            Debug.Log($"[DEBUG] Skipping UpdateUI for bc.studentId: {bc.studentId}");
         }
 
         // Debug component states
@@ -289,65 +264,137 @@ public class BreadboardSimulator : MonoBehaviour
         return result;
     }
 
+    // Helper method to find lab messages in a specific breadboard
+    private Transform FindLabMessagesInBreadboard(Transform breadboardRoot)
+    {
+        // Try direct path first
+        Transform labMessages = breadboardRoot.Find("Lab Messages");
+        if (labMessages != null) return labMessages;
+
+        // Search recursively
+        return FindLabMessagesRecursive(breadboardRoot);
+    }
+
+    // Helper method to find experiment name in a specific breadboard
+    private Transform FindExperimentNameInBreadboard(Transform breadboardRoot)
+    {
+        // Try direct path first
+        Transform experimentName = breadboardRoot.Find("Canvas/ExperimentName");
+        if (experimentName != null) return experimentName;
+
+        // Search recursively
+        return FindExperimentNameRecursive(breadboardRoot);
+    }
+
+    private Transform FindLabMessagesRecursive(Transform parent)
+    {
+        if (parent.name == "Lab Messages") return parent;
+
+        foreach (Transform child in parent)
+        {
+            Transform found = FindLabMessagesRecursive(child);
+            if (found != null) return found;
+        }
+
+        return null;
+    }
+
+    private Transform FindExperimentNameRecursive(Transform parent)
+    {
+        if (parent.name == "ExperimentName") return parent;
+
+        foreach (Transform child in parent)
+        {
+            Transform found = FindExperimentNameRecursive(child);
+            if (found != null) return found;
+        }
+
+        return null;
+    }
+
     private void UpdateUI(BreadboardController bc, SimulationResult result)
     {
-        Debug.Log($"[DEBUG] UpdateUI called for bc.studentId: {bc.studentId}");
-        
         // Get the correct experiment definitions - use the ones from the breadboard controller's simulator
         ExperimentDefinitions targetExperimentDefinitions;
+        Transform targetLabMessagesTransform;
+        Transform targetExperimentNameTransform;
+        int currentExperimentId;
 
         // Check if we're spectating and need to use the student's experiment data
         InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
         if (spectatorController != null && spectatorController.IsSpectating &&
             GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor)
         {
-            Debug.Log($"[DEBUG] Using student's experiment definitions from bc.studentId: {bc.studentId}");
             // Use the student's experiment definitions from their breadboard's simulator
             targetExperimentDefinitions = bc.GetSimulatorInstance().GetExperimentDefinitions();
-            Debug.Log($"[DEBUG] Student's current experiment ID: {targetExperimentDefinitions.CurrentExperimentId}");
-            Debug.Log($"[DEBUG] Student's completed instructions: {targetExperimentDefinitions.GetCompletedInstructionsCount(targetExperimentDefinitions.CurrentExperimentId)}/{targetExperimentDefinitions.GetTotalInstructionsCount(targetExperimentDefinitions.CurrentExperimentId)}");
+
+            // IMPORTANT: Use the synchronized experiment ID from the network
+            currentExperimentId = bc.currentExperimentId;
+            targetExperimentDefinitions.CurrentExperimentId = currentExperimentId;
+
+            // Use the UI elements from the spectated breadboard, not the instructor's breadboard
+            targetLabMessagesTransform = FindLabMessagesInBreadboard(bc.transform);
+            targetExperimentNameTransform = FindExperimentNameInBreadboard(bc.transform);
+
+            Debug.Log($"Spectating: Using student's UI elements from breadboard {bc.studentId}, experiment {currentExperimentId}");
         }
         else
         {
-            Debug.Log($"[DEBUG] Using own experiment definitions");
-            // Use our own experiment definitions
+            // Use our own experiment definitions and UI elements
             targetExperimentDefinitions = this.experimentDefinitions;
-            Debug.Log($"[DEBUG] Own current experiment ID: {targetExperimentDefinitions.CurrentExperimentId}");
+            currentExperimentId = targetExperimentDefinitions.CurrentExperimentId;
+            targetLabMessagesTransform = bc.labMessagesTransform;
+            targetExperimentNameTransform = bc.transform.Find("Canvas").Find("ExperimentName");
+        }
+
+        // If we couldn't find the lab messages transform, fall back to the original
+        if (targetLabMessagesTransform == null)
+        {
+            targetLabMessagesTransform = bc.labMessagesTransform;
+            Debug.LogWarning($"Could not find lab messages for breadboard {bc.studentId}, using fallback");
         }
 
         //Clear messages first
-        foreach (Transform child in bc.labMessagesTransform)
+        foreach (Transform child in targetLabMessagesTransform)
         {
             Destroy(child.gameObject);
         }
 
-        // Add component guide first
-        AddComponentGuideForExperiment(bc, targetExperimentDefinitions.CurrentExperimentId);
+        // Add component guide first - use the synchronized experiment ID
+        AddComponentGuideForExperiment(bc, currentExperimentId);
 
         //Add main instruction
         GameObject taskMsg = Instantiate(taskText);
 
-        bool isCompleted = ((float)targetExperimentDefinitions.GetCompletedInstructionsCount(targetExperimentDefinitions.CurrentExperimentId) / targetExperimentDefinitions.GetTotalInstructionsCount(targetExperimentDefinitions.CurrentExperimentId)) == 1f;
+        bool isCompleted = ((float)targetExperimentDefinitions.GetCompletedInstructionsCount(currentExperimentId) / targetExperimentDefinitions.GetTotalInstructionsCount(currentExperimentId)) == 1f;
 
-        taskMsg.transform.SetParent(bc.labMessagesTransform);
+        taskMsg.transform.SetParent(targetLabMessagesTransform);
         taskMsg.transform.localScale = Vector3.one;
         taskMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         taskMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
-        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {targetExperimentDefinitions.CurrentExperimentId} Completed!" : result.ExperimentResult.MainInstruction;
+        taskMsg.transform.Find("Message").GetComponent<TMP_Text>().text = isCompleted ? $"Experiment {currentExperimentId} Completed!" : result.ExperimentResult.MainInstruction;
 
         //Append messages
         foreach (string msg in result.ExperimentResult.Messages)
         {
             GameObject warningMsg = Instantiate(warningText);
-            warningMsg.transform.SetParent(bc.labMessagesTransform);
+            warningMsg.transform.SetParent(targetLabMessagesTransform);
             warningMsg.transform.Find("Message").GetComponent<TMP_Text>().text = msg;
             warningMsg.transform.localScale = Vector3.one;
             warningMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
             warningMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);
         }
 
-        //Update Experiment Name
-        TMP_Text experimentName = bc.transform.Find("Canvas").Find("ExperimentName").GetComponent<TMP_Text>();
+        //Update Experiment Name - use the correct experiment name transform
+        TMP_Text experimentName;
+        if (targetExperimentNameTransform != null)
+        {
+            experimentName = targetExperimentNameTransform.GetComponent<TMP_Text>();
+        }
+        else
+        {
+            experimentName = bc.transform.Find("Canvas").Find("ExperimentName").GetComponent<TMP_Text>();
+        }
         experimentName.text = result.ExperimentResult.ExperimentName;
 
         // Activate appropriate diagram based on current experiment
@@ -362,7 +409,7 @@ public class BreadboardSimulator : MonoBehaviour
         diagram74148.SetActive(false);
 
         // Activate the appropriate diagram based on current experiment
-        switch (targetExperimentDefinitions.CurrentExperimentId)
+        switch (currentExperimentId)
         {
             case 1: // IC 74138 Decoder experiment
                 diagram74138.SetActive(true);
@@ -381,7 +428,7 @@ public class BreadboardSimulator : MonoBehaviour
         float maxWidthSlider = 160f;
 
         // Calculate the target fill amount (0 to 1)
-        float targetFillAmount = (float)targetExperimentDefinitions.GetCompletedInstructionsCount(targetExperimentDefinitions.CurrentExperimentId) / targetExperimentDefinitions.GetTotalInstructionsCount(targetExperimentDefinitions.CurrentExperimentId);
+        float targetFillAmount = (float)targetExperimentDefinitions.GetCompletedInstructionsCount(currentExperimentId) / targetExperimentDefinitions.GetTotalInstructionsCount(currentExperimentId);
         float currentWidth = fillSlider.sizeDelta.x;
         float targetWidth = maxWidthSlider * targetFillAmount;
 
@@ -395,7 +442,7 @@ public class BreadboardSimulator : MonoBehaviour
 
         //Update slider text
         TMP_Text completionText = experimentName.transform.Find("Task Completion Text").GetComponent<TMP_Text>();
-        completionText.text = $"COMPLETED {targetExperimentDefinitions.GetCompletedInstructionsCount(targetExperimentDefinitions.CurrentExperimentId)}/{targetExperimentDefinitions.GetTotalInstructionsCount(targetExperimentDefinitions.CurrentExperimentId)}";
+        completionText.text = $"COMPLETED {targetExperimentDefinitions.GetCompletedInstructionsCount(currentExperimentId)}/{targetExperimentDefinitions.GetTotalInstructionsCount(currentExperimentId)}";
 
         //Clear button events here
         Button prevExperiment = experimentName.transform.Find("PrevExperiment").GetComponent<Button>();
@@ -419,6 +466,9 @@ public class BreadboardSimulator : MonoBehaviour
             {
                 targetExperimentDefinitions.PreviousExperiment();
                 BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
+
+                // Notify any spectating instructors of the experiment change
+                NotifySpectatorsOfExperimentChange(bc);
             });
 
             //Add button events
@@ -426,7 +476,32 @@ public class BreadboardSimulator : MonoBehaviour
             {
                 targetExperimentDefinitions.NextExperiment();
                 BreadboardStateUtils.Instance.VisualizeBreadboard(bc);
+
+                // Notify any spectating instructors of the experiment change
+                NotifySpectatorsOfExperimentChange(bc);
             });
+        }
+    }
+
+    private void NotifySpectatorsOfExperimentChange(BreadboardController bc)
+    {
+        // Find any spectating instructors
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        if (spectatorController != null && spectatorController.IsSpectating &&
+            GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor)
+        {
+            // Check if the spectator is watching this specific student
+            GameObject spectatedBreadboard = spectatorController.GetSpectatedStudentBreadboard();
+            if (spectatedBreadboard != null)
+            {
+                BreadboardController spectatedBC = spectatedBreadboard.GetComponent<BreadboardController>();
+                if (spectatedBC == bc)
+                {
+                    // The spectator is watching this student, so trigger UI update
+                    string currentState = BreadboardStateUtils.Instance.ConvertStateToJson(bc.breadboardComponents);
+                    Run(currentState, bc);
+                }
+            }
         }
     }
 
@@ -445,7 +520,25 @@ public class BreadboardSimulator : MonoBehaviour
     private void AddComponentGuideForExperiment(BreadboardController bc, int experimentId)
     {
         GameObject componentMsg = Instantiate(componentText);
-        componentMsg.transform.SetParent(bc.labMessagesTransform);
+
+        // Get the correct lab messages transform
+        Transform targetLabMessagesTransform;
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        if (spectatorController != null && spectatorController.IsSpectating &&
+            GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor)
+        {
+            targetLabMessagesTransform = FindLabMessagesInBreadboard(bc.transform);
+            if (targetLabMessagesTransform == null)
+            {
+                targetLabMessagesTransform = bc.labMessagesTransform;
+            }
+        }
+        else
+        {
+            targetLabMessagesTransform = bc.labMessagesTransform;
+        }
+
+        componentMsg.transform.SetParent(targetLabMessagesTransform);
         componentMsg.transform.localScale = Vector3.one;
         componentMsg.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         componentMsg.transform.localPosition = new Vector3(transform.localPosition.x, transform.localPosition.y, 0f);

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Mirror;
+using Newtonsoft.Json;
 
 public class InstructorSpectatorController : MonoBehaviour
 {
@@ -115,6 +116,9 @@ public class InstructorSpectatorController : MonoBehaviour
         // Handle input for spectator mode switching
         HandleSpectatorInput();
 
+        // Monitor for experiment changes while spectating
+        MonitorSpectatedExperimentChanges();
+
         // Update camera position if spectating
         if (currentMode == SpectatorMode.SpectatingStudent)
         {
@@ -160,6 +164,11 @@ public class InstructorSpectatorController : MonoBehaviour
                 // Loop back to free camera
                 ExitSpectatorMode();
             }
+            else
+            {
+                // Update spectating target and trigger UI update
+                UpdateSpectatingTarget();
+            }
         }
 
         Debug.Log($"Spectator Mode: {currentMode}, Student Index: {currentSpectatedStudentIndex}");
@@ -186,6 +195,11 @@ public class InstructorSpectatorController : MonoBehaviour
             {
                 // Loop back to free camera
                 ExitSpectatorMode();
+            }
+            else
+            {
+                // Update spectating target and trigger UI update
+                UpdateSpectatingTarget();
             }
         }
 
@@ -215,15 +229,100 @@ public class InstructorSpectatorController : MonoBehaviour
             emulator.enabled = false;
         }
 
-        // Hide student player models from instructor's view
-        int studentLayer = LayerMask.NameToLayer("StudentPlayer");
-        if (studentLayer != -1)
+        UpdateSpectatingTarget();
+    }
+
+    void UpdateSpectatingTarget()
+    {
+        if (currentSpectatedStudentIndex < 0 || currentSpectatedStudentIndex >= studentPlayers.Count)
         {
-            spectatorCamera.cullingMask &= ~(1 << studentLayer);
+            return;
         }
 
         PlayerController targetStudent = studentPlayers[currentSpectatedStudentIndex];
+
+        // Update visibility: Hide the spectated student's model only from the instructor's view
+        UpdatePlayerVisibility();
+
+        // Initialize the last spectated experiment ID to sync with student's current experiment
+        GameObject spectatedBreadboard = GetSpectatedStudentBreadboard();
+        if (spectatedBreadboard != null)
+        {
+            BreadboardController bc = spectatedBreadboard.GetComponent<BreadboardController>();
+            if (bc != null)
+            {
+                BreadboardSimulator simulator = bc.GetSimulatorInstance();
+                if (simulator != null)
+                {
+                    ExperimentDefinitions experimentDefinitions = simulator.GetExperimentDefinitions();
+                    if (experimentDefinitions != null)
+                    {
+                        // Sync the spectator's tracking with the student's current experiment
+                        lastSpectatedExperimentId = experimentDefinitions.CurrentExperimentId;
+                        Debug.Log($"Synced spectator to student's experiment ID: {lastSpectatedExperimentId}");
+                    }
+                }
+            }
+        }
+
+        // Trigger UI update for the spectated student's breadboard
+        TriggerSpectatedBreadboardUI();
+
         GameManager.Instance.SetInteractionMessage($"Spectating: {targetStudent.playerName}");
+    }
+
+    void UpdatePlayerVisibility()
+    {
+        // Reset all student visibility first
+        foreach (var student in studentPlayers)
+        {
+            if (student.playerModel != null)
+            {
+                SetPlayerModelVisibility(student.playerModel, true);
+            }
+        }
+
+        // Hide only the currently spectated student's model from instructor's view
+        if (currentSpectatedStudentIndex >= 0 && currentSpectatedStudentIndex < studentPlayers.Count)
+        {
+            PlayerController spectatedStudent = studentPlayers[currentSpectatedStudentIndex];
+            if (spectatedStudent.playerModel != null)
+            {
+                SetPlayerModelVisibility(spectatedStudent.playerModel, false);
+            }
+        }
+    }
+
+    void SetPlayerModelVisibility(GameObject playerModel, bool visible)
+    {
+        Renderer[] renderers = playerModel.GetComponentsInChildren<Renderer>();
+        foreach (Renderer renderer in renderers)
+        {
+            renderer.enabled = visible;
+        }
+    }
+
+    void TriggerSpectatedBreadboardUI()
+    {
+        GameObject spectatedBreadboard = GetSpectatedStudentBreadboard();
+        if (spectatedBreadboard != null)
+        {
+            // Notify BreadboardManager to switch to the spectated breadboard's UI
+            BreadboardManager.Instance.NotifySimulationStarted(spectatedBreadboard);
+
+            // Force a simulation update to refresh the UI
+            BreadboardController bc = spectatedBreadboard.GetComponent<BreadboardController>();
+            if (bc != null)
+            {
+                BreadboardSimulator simulator = bc.GetSimulatorInstance();
+                if (simulator != null)
+                {
+                    // Use the proper state conversion method from BreadboardStateUtils
+                    string currentState = BreadboardStateUtils.Instance.ConvertStateToJson(bc.breadboardComponents);
+                    simulator.Run(currentState, bc);
+                }
+            }
+        }
     }
 
     void ExitSpectatorMode()
@@ -231,6 +330,9 @@ public class InstructorSpectatorController : MonoBehaviour
         currentMode = SpectatorMode.FreeCamera;
         currentSpectatedStudentIndex = -1;
         wasInSpectatorMode = false;
+
+        // Reset the experiment tracking
+        lastSpectatedExperimentId = -1;
 
         // Re-enable the local player's movement
         if (localPlayerController != null)
@@ -245,6 +347,15 @@ public class InstructorSpectatorController : MonoBehaviour
             emulator.enabled = true;
         }
 
+        // Restore all student model visibility
+        foreach (var student in studentPlayers)
+        {
+            if (student.playerModel != null)
+            {
+                SetPlayerModelVisibility(student.playerModel, true);
+            }
+        }
+
         // Restore original camera position and culling mask
         if (spectatorCamera != null)
         {
@@ -253,6 +364,9 @@ public class InstructorSpectatorController : MonoBehaviour
             spectatorCamera.transform.localRotation = originalCameraRotation;
             spectatorCamera.cullingMask = originalCullingMask;
         }
+
+        // Return to instructor's own breadboard UI
+        BreadboardManager.Instance.NotifySimulationExited();
 
         GameManager.Instance.ClearInteractionMessage();
     }
@@ -270,32 +384,28 @@ public class InstructorSpectatorController : MonoBehaviour
             return;
         }
 
-        // Use the student's player model rotation instead of camera rotation
-        // The player model rotation is synchronized across the network
-        Vector3 targetPosition = targetStudent.transform.position;
-        Vector3 studentForward = targetStudent.transform.forward;
+        // Calculate spectator position behind and above the student
+        Vector3 studentPosition = targetStudent.transform.position;
+        Vector3 lookDirection;
 
-        // Get the student's neck transform for head rotation if available
-        Transform studentNeck = targetStudent.neckTransform;
-        Vector3 lookDirection = studentForward;
-
-        if (studentNeck != null)
+        // Use the student's forward direction for camera orientation
+        if (targetStudent.neckTransform != null)
         {
-            // Use the neck's forward direction for more accurate head tracking
-            lookDirection = studentNeck.forward;
+            lookDirection = targetStudent.neckTransform.forward;
+        }
+        else
+        {
+            lookDirection = targetStudent.transform.forward;
         }
 
-        // Calculate base position behind and above the student
-        Vector3 baseSpectatorPosition = targetPosition - (lookDirection * (spectatorDistance + backwardOffset)) + (Vector3.up * (spectatorHeight + heightOffset));
+        // Calculate the spectator position
+        Vector3 backwardDirection = -lookDirection;
+        Vector3 spectatorPosition = studentPosition +
+                                  backwardDirection * (spectatorDistance + backwardOffset) +
+                                  Vector3.up * (spectatorHeight + heightOffset);
 
-        // Apply additional calibration offset
-        Vector3 rightDirection = Vector3.Cross(Vector3.up, lookDirection).normalized;
-        Vector3 upDirection = Vector3.up;
-
-        Vector3 finalSpectatorPosition = baseSpectatorPosition +
-            (rightDirection * cameraOffset.x) +
-            (upDirection * cameraOffset.y) +
-            (lookDirection * cameraOffset.z);
+        // Apply additional camera offset
+        Vector3 finalSpectatorPosition = spectatorPosition + cameraOffset;
 
         // Calculate rotation to look in the same direction as the student
         Quaternion spectatorRotation = Quaternion.LookRotation(lookDirection);
@@ -325,21 +435,6 @@ public class InstructorSpectatorController : MonoBehaviour
             if (player.playerName.Contains("Student") && !player.hasAuthority)
             {
                 studentPlayers.Add(player);
-
-                // Set student player models to StudentPlayer layer for culling
-                if (player.playerModel != null)
-                {
-                    int studentLayer = LayerMask.NameToLayer("StudentPlayer");
-                    if (studentLayer == -1)
-                    {
-                        // Create the layer if it doesn't exist (this should be done in Unity Editor)
-                        Debug.LogWarning("StudentPlayer layer not found. Please create this layer in Unity Editor.");
-                    }
-                    else
-                    {
-                        SetLayerRecursively(player.playerModel, studentLayer);
-                    }
-                }
             }
         }
 
@@ -351,6 +446,37 @@ public class InstructorSpectatorController : MonoBehaviour
             (currentSpectatedStudentIndex >= studentPlayers.Count || studentPlayers.Count == 0))
         {
             ExitSpectatorMode();
+        }
+    }
+
+    private int lastSpectatedExperimentId = -1;
+
+    void MonitorSpectatedExperimentChanges()
+    {
+        if (currentMode == SpectatorMode.SpectatingStudent && currentSpectatedStudentIndex >= 0)
+        {
+            GameObject spectatedBreadboard = GetSpectatedStudentBreadboard();
+            if (spectatedBreadboard != null)
+            {
+                BreadboardController bc = spectatedBreadboard.GetComponent<BreadboardController>();
+                if (bc != null)
+                {
+                    BreadboardSimulator simulator = bc.GetSimulatorInstance();
+                    if (simulator != null)
+                    {
+                        ExperimentDefinitions experimentDefinitions = simulator.GetExperimentDefinitions();
+                        if (experimentDefinitions != null)
+                        {
+                            int currentExperimentId = experimentDefinitions.CurrentExperimentId;
+                            if (lastSpectatedExperimentId != currentExperimentId)
+                            {
+                                lastSpectatedExperimentId = currentExperimentId;
+                                TriggerSpectatedBreadboardUI();
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -375,3 +501,4 @@ public class InstructorSpectatorController : MonoBehaviour
         }
     }
 }
+

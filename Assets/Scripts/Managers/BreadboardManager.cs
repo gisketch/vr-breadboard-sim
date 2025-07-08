@@ -169,6 +169,19 @@ public class BreadboardManager : MonoBehaviour
     // UI Button Management
     private void CreateUIButtons()
     {
+        // Clean up any existing buttons first to prevent duplication
+        if (orientationButton != null)
+        {
+            Destroy(orientationButton.gameObject);
+            orientationButton = null;
+        }
+
+        if (exitButton != null)
+        {
+            Destroy(exitButton.gameObject);
+            exitButton = null;
+        }
+
         if (leftPanel != null)
         {
             leftPanel.gameObject.SetActive(true); // Activate left panel
