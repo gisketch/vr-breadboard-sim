@@ -31,7 +31,7 @@ namespace Mirror
         public bool isFlyMode = false;
 
         private CharacterController characterController;
-        private Camera mainCamera;
+        public Camera mainCamera;
         private Vector3 currentVelocity = Vector3.zero;
         private float verticalVelocity = 0f;
         private int localPlayerLayerIndex;
@@ -147,6 +147,14 @@ namespace Mirror
         private void Update()
         {
             if (!hasAuthority) { return; }
+
+            // Check if instructor is in spectator mode and prevent all interactions
+            InstructorSpectatorController spectatorController = GetComponent<InstructorSpectatorController>();
+            if (spectatorController != null && spectatorController.IsSpectating)
+            {
+                // If spectator controller exists and is spectating, don't process normal movement or interactions
+                return;
+            }
 
             if (Input.GetKeyDown(KeyCode.L))
             {

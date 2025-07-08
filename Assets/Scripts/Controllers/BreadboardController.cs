@@ -412,6 +412,13 @@ namespace Mirror
         {
             if (hasAuthority)
             {
+                // Check if instructor is in spectator mode and prevent interaction
+                InstructorSpectatorController spectatorController = GetComponent<InstructorSpectatorController>();
+                if (spectatorController != null && spectatorController.IsSpectating)
+                {
+                    return; // Don't allow breadboard interaction while spectating
+                }
+
                 ClickOwner();
             }
         }

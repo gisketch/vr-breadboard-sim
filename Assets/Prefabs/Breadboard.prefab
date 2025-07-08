@@ -1083,8 +1083,8 @@ RectTransform:
   m_Children:
   - {fileID: 8563591019729101474}
   - {fileID: 4894245991237498512}
-  - {fileID: 7687708529981364761}
-  - {fileID: 5761720859185244521}
+  - {fileID: 7764139700989295152}
+  - {fileID: 5690939550588668224}
   m_Father: {fileID: 1993392515}
   m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1119,10 +1119,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Experiment 2:
-
-
-    BCD to 7 Segment Laboratory'
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f6dc583999dace040bf4c09c806734e2, type: 2}
   m_sharedMaterial: {fileID: 2929798285971262487, guid: f6dc583999dace040bf4c09c806734e2,
@@ -1192,13 +1189,13 @@ MonoBehaviour:
   m_margin: {x: 0, y: 0, z: 0, w: 0}
   m_textInfo:
     textComponent: {fileID: 6498949299421209299}
-    characterCount: 42
+    characterCount: 0
     spriteCount: 0
-    spaceCount: 7
-    wordCount: 7
+    spaceCount: 0
+    wordCount: 0
     linkCount: 0
-    lineCount: 4
-    pageCount: 1
+    lineCount: 0
+    pageCount: 0
     materialCount: 1
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
@@ -51463,7 +51460,7 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
-  - {fileID: 700035003455257191}
+  - {fileID: 1957945052876468244}
   m_Father: {fileID: 4105009496844006561}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -52292,7 +52289,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 31957ade0f49476488def7d1d47d5b21, type: 3}
---- !u!4 &700035003455257191 stripped
+--- !u!4 &1957945052876468244 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1340668090922649935, guid: 31957ade0f49476488def7d1d47d5b21,
     type: 3}
@@ -52652,7 +52649,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fcec3929eb11b34408c5487b04a6eab1, type: 3}
---- !u!224 &5761720859185244521 stripped
+--- !u!224 &5690939550588668224 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 76554350670834411, guid: fcec3929eb11b34408c5487b04a6eab1,
     type: 3}
@@ -52922,7 +52919,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: fcec3929eb11b34408c5487b04a6eab1, type: 3}
---- !u!224 &7687708529981364761 stripped
+--- !u!224 &7764139700989295152 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 76554350670834411, guid: fcec3929eb11b34408c5487b04a6eab1,
     type: 3}

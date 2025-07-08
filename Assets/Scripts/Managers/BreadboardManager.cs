@@ -37,6 +37,51 @@ public class BreadboardManager : MonoBehaviour
         }
     }
 
+    void Update()
+    {
+        // Check if instructor is spectating and should show spectated student's UI
+        CheckForSpectatedBreadboardUI();
+    }
+
+    private void CheckForSpectatedBreadboardUI()
+    {
+        // Only check for instructors
+        if (GameManager.Instance.CurrentRole != GameManager.UserRole.Instructor)
+            return;
+
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        if (spectatorController == null || !spectatorController.IsSpectating)
+            return;
+
+        GameObject spectatedBreadboard = spectatorController.GetSpectatedStudentBreadboard();
+        if (spectatedBreadboard == null)
+            return;
+
+        Mirror.BreadboardController spectatedController = spectatedBreadboard.GetComponent<Mirror.BreadboardController>();
+        if (spectatedController == null || !spectatedController.isInSimMode)
+        {
+            // If spectated student is not in sim mode, hide UI
+            if (isSimulationMode)
+            {
+                NotifySimulationExited();
+            }
+            return;
+        }
+
+        // If spectated student is in sim mode and we're not showing their UI yet
+        if (!isSimulationMode || currentBreadboard != spectatedBreadboard)
+        {
+            // Exit current UI if any
+            if (isSimulationMode)
+            {
+                NotifySimulationExited();
+            }
+            
+            // Show spectated student's UI
+            NotifySimulationStarted(spectatedBreadboard);
+        }
+    }
+
     // Notification method called from BreadboardController when sim mode is activated
     public void NotifySimulationStarted(GameObject bb)
     {
@@ -73,7 +118,16 @@ public class BreadboardManager : MonoBehaviour
     {
         if (!isSimulationMode || currentController == null) return;
 
-        // Tell the controller to exit sim mode
+        // Check if we're spectating - if so, don't exit the student's sim mode
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        if (spectatorController != null && spectatorController.IsSpectating)
+        {
+            // Just hide the UI for the instructor, don't affect the student's sim mode
+            NotifySimulationExited();
+            return;
+        }
+
+        // Tell the controller to exit sim mode (only if it's our own breadboard)
         currentController.CmdToggleSimMode(false);
     }
 
@@ -82,7 +136,15 @@ public class BreadboardManager : MonoBehaviour
     {
         if (!isSimulationMode || currentController == null) return;
 
-        // Tell the controller to toggle orientation
+        // Check if we're spectating - if so, don't change the student's orientation
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        if (spectatorController != null && spectatorController.IsSpectating)
+        {
+            // Don't allow orientation changes when spectating
+            return;
+        }
+
+        // Tell the controller to toggle orientation (only if it's our own breadboard)
         currentController.CmdToggleOrientation();
     }
 
@@ -100,7 +162,7 @@ public class BreadboardManager : MonoBehaviour
         TMP_Text buttonText = orientationButton.GetComponentInChildren<TMP_Text>();
         if (buttonText != null)
         {
-            buttonText.text = isPortraitMode ? "Landscape View" : "Portrait View";
+            buttonText.text = isPortraitMode ? "Landscape" : "Portrait";
         }
     }
 

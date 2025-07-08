@@ -18,6 +18,20 @@ namespace Mirror
         public static event Action OnClientConnected;
         public static event Action OnClientDisconnected;
 
+        // Add this method to get a player's breadboard
+        public GameObject GetPlayerBreadboard(uint netId)
+        {
+            playerBreadboards.TryGetValue(netId, out GameObject breadboard);
+            return breadboard;
+        }
+
+        // Add this method to get a player's breadboard by PlayerController
+        public GameObject GetPlayerBreadboard(PlayerController player)
+        {
+            if (player == null || player.netIdentity == null) return null;
+            return GetPlayerBreadboard(player.netIdentity.netId);
+        }
+
         public override void OnStartServer()
         {
             base.OnStartServer();
@@ -57,6 +71,15 @@ namespace Mirror
                 playerSpawn[numPlayers];
 
             GameObject player = Instantiate(playerPrefab, spawnPoint.position, spawnPoint.rotation);
+
+            // Add spectator controller to instructor players (only if not Android)
+#if !UNITY_ANDROID
+            if (role == GameManager.UserRole.Instructor)
+            {
+                player.AddComponent<InstructorSpectatorController>();
+            }
+#endif
+
             NetworkServer.AddPlayerForConnection(conn, player);
 
             // If student, also spawn a breadboard
