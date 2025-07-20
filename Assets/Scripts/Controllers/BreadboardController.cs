@@ -217,6 +217,25 @@ namespace Mirror
             BreadboardStateUtils.Instance.VisualizeBreadboard(this);
         }
 
+        [ContextMenu("Clear Breadboard State")]
+        public void ClearBreadboardState()
+        {
+            if (!hasAuthority) return;
+
+            // Clear all components from the breadboard
+            CmdClearAllComponents();
+
+            // // Reset any saved states in PlayerPrefs
+            // for (int i = 1; i <= 4; i++)
+            // {
+            //     PlayerPrefs.DeleteKey($"BreadboardState_Slot{i}");
+            // }
+            // PlayerPrefs.Save();
+
+            Debug.Log("Breadboard state cleared - all components removed");
+        }
+
+
         private void SaveBreadboardState(int slot)
         {
             if (!hasAuthority) return;
@@ -362,7 +381,26 @@ namespace Mirror
         [Command]
         public void CmdClearAllComponents()
         {
+            Debug.Log($"Clearing all components for student {studentId}");
+            
+            // Clear components first
             breadboardComponents.Clear();
+            
+            // Force immediate clearing of node occupancies after components are cleared
+            if (BreadboardStateUtils.Instance != null)
+            {
+                // Use invoke to ensure this happens after the SyncDictionary change is processed
+                Invoke(nameof(ForceNodeOccupancyClear), 0.1f);
+            }
+        }
+    
+        private void ForceNodeOccupancyClear()
+        {
+            if (BreadboardStateUtils.Instance != null)
+            {
+                Debug.Log($"Force clearing node occupancies for student {studentId}");
+                BreadboardStateUtils.Instance.ClearAllNodeOccupanciesForController(this);
+            }
         }
 
         [Command]
@@ -594,3 +632,4 @@ namespace Mirror
     }
 
 }
+

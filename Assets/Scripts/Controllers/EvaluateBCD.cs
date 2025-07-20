@@ -5,8 +5,8 @@ using UnityEngine;
 
 public class EvaluateBCD
 {
-    // Static dictionary to persist completed input patterns across evaluations
-    private static Dictionary<string, HashSet<int>> completedInputPatterns = new Dictionary<string, HashSet<int>>();
+    // Instance dictionary to persist completed input patterns across evaluations
+    private Dictionary<string, HashSet<int>> completedInputPatterns = new Dictionary<string, HashSet<int>>();
 
     public ExperimentResult EvaluateBCDTo7SegmentExperiment(
         BreadboardSimulator.SimulationResult simResult,
@@ -1162,7 +1162,7 @@ public class EvaluateBCD
     }
 
     // Method to reset completed input patterns (call this when starting a new experiment)
-    public static void ResetCompletedInputPatterns(string experimentId)
+    public void ResetCompletedInputPatterns(string experimentId)
     {
         if (completedInputPatterns.ContainsKey(experimentId))
         {
@@ -1171,7 +1171,7 @@ public class EvaluateBCD
     }
 
     // Method to get completed input patterns count (for debugging/UI)
-    public static int GetCompletedInputPatternsCount(string experimentId)
+    public int GetCompletedInputPatternsCount(string experimentId)
     {
         if (completedInputPatterns.ContainsKey(experimentId))
         {

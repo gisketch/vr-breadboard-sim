@@ -333,6 +333,11 @@ public class BreadboardStateUtils : MonoBehaviour
         }
     }
 
+    public void ClearAllNodeOccupanciesForController(BreadboardController bc)
+    {
+        ClearAllNodeOccupancies(bc);
+    }
+
     // Visualization Methods
     // In the VisualizeBreadboard method, replace the simulator access:
 
@@ -348,6 +353,13 @@ public class BreadboardStateUtils : MonoBehaviour
 
         // Clear existing visualization
         ClearComponentsParent(componentsParent);
+
+        // If no components, ensure all nodes remain cleared
+        if (bc.breadboardComponents.Count == 0)
+        {
+            Debug.Log("No components to visualize, keeping all nodes clear");
+            return;
+        }
 
         // Collect all nodes used by components
         HashSet<string> occupiedNodes = CollectOccupiedNodes(bc.breadboardComponents);
@@ -679,8 +691,13 @@ public class BreadboardStateUtils : MonoBehaviour
     // Node Utils
     private void ClearAllNodeOccupancies(BreadboardController bc)
     {
+        Debug.Log($"Clearing all node occupancies for controller {bc.studentId}");
         Transform breadboardTransform = bc.transform.Find("Breadboard");
-        if (breadboardTransform == null) return;
+        if (breadboardTransform == null)
+        {
+            Debug.LogError("Breadboard transform not found!");
+            return;
+        }
 
         // Clear all power rail nodes
         ClearNodeGroupOccupancies(breadboardTransform.Find("PowerRailLeft"));
@@ -689,23 +706,36 @@ public class BreadboardStateUtils : MonoBehaviour
         // Clear all component nodes
         ClearNodeGroupOccupancies(breadboardTransform.Find("NodesLeft"));
         ClearNodeGroupOccupancies(breadboardTransform.Find("NodesRight"));
+
+        Debug.Log("Finished clearing all node occupancies");
     }
 
     private void ClearNodeGroupOccupancies(Transform nodeGroup)
     {
-        if (nodeGroup == null) return;
-
-        foreach (Transform row in nodeGroup)
+        if (nodeGroup == null) 
         {
-            foreach (Transform nodeTransform in row)
+            Debug.LogWarning($"Node group is null: {nodeGroup}");
+            return;
+        }
+    
+        int clearedCount = 0;
+        int totalNodesFound = 0;
+        
+        // Check if nodes are direct children or nested in rows
+        Node[] directNodes = nodeGroup.GetComponentsInChildren<Node>();
+        
+        foreach (Node node in directNodes)
+        {
+            totalNodesFound++;
+            if (node.isOccupied)
             {
-                Node node = nodeTransform.GetComponent<Node>();
-                if (node != null)
-                {
-                    node.ClearOccupancy();
-                }
+                Debug.Log($"Clearing occupied node: {node.nodeId}");
+                node.ClearOccupancy();
+                clearedCount++;
             }
         }
+        
+        Debug.Log($"Found {totalNodesFound} total nodes in group {nodeGroup.name}, cleared {clearedCount} occupied nodes");
     }
 
     private HashSet<string> CollectOccupiedNodes(SyncDictionary<string, BreadboardComponentData> components)

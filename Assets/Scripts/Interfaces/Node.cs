@@ -85,11 +85,13 @@ public class Node : MonoBehaviour, IPointerEnterHandler, IPointerClickHandler, I
     public void Occupy()
     {
         isOccupied = true;
+        Debug.Log($"Node {nodeId} occupied");
     }
 
     public void ClearOccupancy()
     {
         isOccupied = false;
+        Debug.Log($"Node {nodeId} occupancy cleared");
     }
 
     // Grabs a node from the same breadboard
