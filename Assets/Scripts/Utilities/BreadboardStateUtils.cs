@@ -3,6 +3,7 @@ using UnityEngine;
 using Mirror;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -341,7 +342,14 @@ public class BreadboardStateUtils : MonoBehaviour
     // Visualization Methods
     // In the VisualizeBreadboard method, replace the simulator access:
 
+    // Visualize entry point: no yields here (avoids CS1624)
     public void VisualizeBreadboard(BreadboardController bc)
+    {
+        StartCoroutine(VisualizeBreadboardCoroutine(bc));
+    }
+
+    // Async visualization: uses the simulator's coroutine to avoid frame hitching
+    private IEnumerator VisualizeBreadboardCoroutine(BreadboardController bc)
     {
         Debug.Log("Visualizing breadboard");
 
@@ -354,43 +362,53 @@ public class BreadboardStateUtils : MonoBehaviour
         // Clear existing visualization
         ClearComponentsParent(componentsParent);
 
-        // If no components, ensure all nodes remain cleared
-        if (bc.breadboardComponents.Count == 0)
-        {
-            Debug.Log("No components to visualize, keeping all nodes clear");
-            return;
-        }
+        // Yield after cleanup operations
+        yield return null;
 
-        // Collect all nodes used by components
-        HashSet<string> occupiedNodes = CollectOccupiedNodes(bc.breadboardComponents);
-        MarkOccupiedNodes(bc, occupiedNodes);
-
-        // Convert SyncDictionary to JSON for simulation
-        string breadboardStateJson = ConvertStateToJson(bc.breadboardComponents);
-
-        // Run simulation using the controller's specific simulator instance
+        // Always run simulation to ensure UI is updated, even with no components
         var simulator = bc.GetSimulatorInstance();
         if (simulator != null)
         {
-            Debug.Log($"Running breadboard simulation for student {bc.studentId}...");
-            var result = simulator.Run(breadboardStateJson, bc);
+            // Convert SyncDictionary to JSON for simulation
+            string breadboardStateJson = ConvertStateToJson(bc.breadboardComponents);
+
+            Debug.Log($"Running breadboard simulation for student {bc.studentId} (async)...");
+            BreadboardSimulator.SimulationResult result = null;
+
+            // Run the simulation asynchronously to avoid blocking the frame
+            yield return StartCoroutine(simulator.RunCoroutine(breadboardStateJson, bc, r => result = r));
 
             // Handle the result
-            if (result.Errors.Count > 0)
+            if (result != null)
             {
-                Debug.LogWarning($"Simulation completed with {result.Errors.Count} errors");
+                if (result.Errors.Count > 0)
+                {
+                    Debug.LogWarning($"Simulation completed with {result.Errors.Count} errors");
+                }
+                else
+                {
+                    Debug.Log("Simulation completed successfully");
+                }
+
+                // Only create visual components if there are components to visualize
+                if (bc.breadboardComponents.Count > 0)
+                {
+                    // Create visual components
+                    foreach (var kvp in bc.breadboardComponents)
+                    {
+                        string componentKey = kvp.Key;
+                        BreadboardComponentData component = kvp.Value;
+                        HandleComponentVisualization(componentKey, component, componentsParent, result.ComponentStates);
+                    }
+                }
+                else
+                {
+                    Debug.Log("No components to visualize, but UI has been updated");
+                }
             }
             else
             {
-                Debug.Log("Simulation completed successfully");
-            }
-
-            // Create visual components
-            foreach (var kvp in bc.breadboardComponents)
-            {
-                string componentKey = kvp.Key;
-                BreadboardComponentData component = kvp.Value;
-                HandleComponentVisualization(componentKey, component, componentsParent, result.ComponentStates);
+                Debug.LogError("Simulation failed to produce a result.");
             }
         }
         else

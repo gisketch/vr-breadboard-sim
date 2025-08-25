@@ -256,12 +256,137 @@ public class BreadboardSimulator : MonoBehaviour
             UpdateUI(bc, result);
         }
 
-        // Debug component states
+        // Debug component states (heavy logging only in editor/dev builds)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
         foreach (var kvp in result.ComponentStates)
         {
             Debug.Log($"Component {kvp.Key}: {JsonConvert.SerializeObject(kvp.Value, Formatting.Indented)}");
         }
+#endif
         return result;
+    }
+
+    // Non-blocking coroutine version to avoid frame hitching on mobile.
+    // Splits the simulation over multiple frames with yields.
+    public System.Collections.IEnumerator RunCoroutine(string jsonState, BreadboardController bc, System.Action<SimulationResult> onCompleted)
+    {
+        // Ensure this simulator is only used by its associated controller
+        if (bc != associatedController)
+        {
+            Debug.LogError($"Simulator mismatch: Expected controller {associatedController?.studentId}, got {bc.studentId}");
+            var mismatchResult = new SimulationResult
+            {
+                Errors = new List<BreadboardError> {
+                    new BreadboardError {
+                        ErrorType = "SimulatorError",
+                        Description = "Simulator instance mismatch"
+                    }
+                }
+            };
+            onCompleted?.Invoke(mismatchResult);
+            yield break;
+        }
+
+        // Debug the input JSON
+        Debug.Log($"Running simulation (async) for student {bc.studentId}...");
+
+        // 1. Parse JSON (safely)
+        JObject parsedJson = null;
+        try
+        {
+            parsedJson = JObject.Parse(jsonState);
+
+            if (parsedJson == null || !parsedJson.ContainsKey("components"))
+            {
+                Debug.LogError("Invalid JSON format: missing 'components' key");
+                var parseErr = new SimulationResult
+                {
+                    Errors = new List<BreadboardError> {
+                        new BreadboardError {
+                            ErrorType = "ParseError",
+                            Description = "Missing 'components' key in JSON"
+                        }
+                    }
+                };
+                onCompleted?.Invoke(parseErr);
+                yield break;
+            }
+        }
+        catch (JsonException ex)
+        {
+            Debug.LogError($"JSON parsing error: {ex.Message}");
+            var parseEx = new SimulationResult
+            {
+                Errors = new List<BreadboardError> {
+                    new BreadboardError {
+                        ErrorType = "ParseError",
+                        Description = $"Error parsing JSON: {ex.Message}"
+                    }
+                }
+            };
+            onCompleted?.Invoke(parseEx);
+            yield break;
+        }
+
+        yield return null; // let the frame breathe after parsing
+
+        var components = parsedJson["components"];
+
+        // 2. Build electrical network
+        var graph = BuildGraph(components);
+        yield return null;
+
+        var nets = IdentifyNets(graph);
+        yield return null;
+
+        DetermineInitialStates(nets, graph, components);
+        yield return null;
+
+        // 3. Run simulation
+        var errors = DetectErrors(nets);
+        yield return null;
+
+        var componentStates = EvaluateComponents(nets, components);
+        yield return null;
+
+        // 4. Package results
+        var result = new SimulationResult
+        {
+            ComponentStates = componentStates,
+            Nets = nets,
+            Errors = errors
+        };
+
+        // Evaluate experiment
+        result.ExperimentResult = experimentEvaluator.EvaluateExperiment(result, components);
+        yield return null;
+
+        // UI Updates - check for authority OR if instructor is spectating this breadboard
+        InstructorSpectatorController spectatorController = FindObjectOfType<InstructorSpectatorController>();
+        bool isInstructorSpectating = spectatorController != null &&
+                                     spectatorController.IsSpectating &&
+                                     GameManager.Instance.CurrentRole == GameManager.UserRole.Instructor;
+
+        if ((bc.hasAuthority && bc == associatedController) || isInstructorSpectating)
+        {
+            UpdateUI(bc, result);
+        }
+
+        // Debug component states (heavy logging only in editor/dev builds)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        foreach (var kvp in result.ComponentStates)
+        {
+            Debug.Log($"Component {kvp.Key}: {JsonConvert.SerializeObject(kvp.Value, Formatting.Indented)}");
+        }
+#endif
+
+        onCompleted?.Invoke(result);
+    }
+
+    // Convenience wrapper to start the non-blocking simulation.
+    public void RunAsync(string jsonState, BreadboardController bc, System.Action<SimulationResult> onCompleted = null)
+    {
+        StartCoroutine(RunCoroutine(jsonState, bc, onCompleted));
     }
 
     // Helper method to find lab messages in a specific breadboard
@@ -497,9 +622,9 @@ public class BreadboardSimulator : MonoBehaviour
                 BreadboardController spectatedBC = spectatedBreadboard.GetComponent<BreadboardController>();
                 if (spectatedBC == bc)
                 {
-                    // The spectator is watching this student, so trigger UI update
+                    // The spectator is watching this student, so trigger UI update asynchronously
                     string currentState = BreadboardStateUtils.Instance.ConvertStateToJson(bc.breadboardComponents);
-                    Run(currentState, bc);
+                    RunAsync(currentState, bc);
                 }
             }
         }
