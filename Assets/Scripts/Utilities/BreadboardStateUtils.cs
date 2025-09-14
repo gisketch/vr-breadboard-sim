@@ -145,7 +145,7 @@ public class BreadboardStateUtils : MonoBehaviour
     }
 
     // DipSwitch: pin1
-    public void AddDipSwitch(string pin1, bool initialState = false)
+    public void AddDipSwitch(string pin1, bool initialState = true)
     {
         try
         {
@@ -171,8 +171,24 @@ public class BreadboardStateUtils : MonoBehaviour
 
     public void RemoveComponentWithNode(string node)
     {
+        Debug.Log($"[RemoveComponentWithNode] Called with node: {node}");
+
         try
         {
+            if (myBreadboardController == null)
+            {
+                Debug.LogError($"[RemoveComponentWithNode] myBreadboardController is null!");
+                return;
+            }
+
+            if (myBreadboardController.breadboardComponents == null)
+            {
+                Debug.LogError($"[RemoveComponentWithNode] breadboardComponents is null!");
+                return;
+            }
+
+            Debug.Log($"[RemoveComponentWithNode] Total components to check: {myBreadboardController.breadboardComponents.Count}");
+
             List<string> componentsToRemove = new List<string>();
             HashSet<string> nodesToClear = new HashSet<string>();
 
@@ -183,9 +199,12 @@ public class BreadboardStateUtils : MonoBehaviour
                 BreadboardComponentData component = kvp.Value;
                 bool shouldRemove = false;
 
+                Debug.Log($"[RemoveComponentWithNode] Checking component {componentId} of type {component.type}");
+
                 // Check if this component uses the target node
                 if (NodeMatchesComponent(node, component))
                 {
+                    Debug.Log($"[RemoveComponentWithNode] Component {componentId} matches node {node} - marking for removal");
                     shouldRemove = true;
                     // Collect all nodes from this component to clear occupancy
                     HashSet<string> componentNodes = GetAllComponentNodes(component);
@@ -194,6 +213,7 @@ public class BreadboardStateUtils : MonoBehaviour
                         if (!string.IsNullOrEmpty(nodeToAdd))
                         {
                             nodesToClear.Add(nodeToAdd);
+                            Debug.Log($"[RemoveComponentWithNode] Adding node {nodeToAdd} to clear list");
                         }
                     }
                 }
@@ -204,18 +224,25 @@ public class BreadboardStateUtils : MonoBehaviour
                 }
             }
 
+            Debug.Log($"[RemoveComponentWithNode] Found {componentsToRemove.Count} components to remove");
+            Debug.Log($"[RemoveComponentWithNode] Found {nodesToClear.Count} nodes to clear");
+
             // Remove identified components
             foreach (string componentId in componentsToRemove)
             {
+                Debug.Log($"[RemoveComponentWithNode] Removing component: {componentId}");
                 myBreadboardController.CmdRemoveComponent(componentId);
             }
 
             // Clear occupancy of affected nodes
             ClearOccupancyOfNodes(myBreadboardController, nodesToClear);
+
+            Debug.Log($"[RemoveComponentWithNode] Removal process completed");
         }
         catch (Exception e)
         {
-            Debug.LogError($"Error removing components with node {node}: {e.Message}");
+            Debug.LogError($"[RemoveComponentWithNode] Error removing components with node {node}: {e.Message}");
+            Debug.LogError($"[RemoveComponentWithNode] Stack trace: {e.StackTrace}");
         }
     }
 
@@ -400,6 +427,11 @@ public class BreadboardStateUtils : MonoBehaviour
                         BreadboardComponentData component = kvp.Value;
                         HandleComponentVisualization(componentKey, component, componentsParent, result.ComponentStates);
                     }
+
+                    // FIXED: Mark nodes as occupied after creating components
+                    HashSet<string> occupiedNodes = CollectOccupiedNodes(bc.breadboardComponents);
+                    MarkOccupiedNodes(bc, occupiedNodes);
+                    Debug.Log($"Marked {occupiedNodes.Count} nodes as occupied after component creation");
                 }
                 else
                 {
@@ -730,18 +762,18 @@ public class BreadboardStateUtils : MonoBehaviour
 
     private void ClearNodeGroupOccupancies(Transform nodeGroup)
     {
-        if (nodeGroup == null) 
+        if (nodeGroup == null)
         {
             Debug.LogWarning($"Node group is null: {nodeGroup}");
             return;
         }
-    
+
         int clearedCount = 0;
         int totalNodesFound = 0;
-        
+
         // Check if nodes are direct children or nested in rows
         Node[] directNodes = nodeGroup.GetComponentsInChildren<Node>();
-        
+
         foreach (Node node in directNodes)
         {
             totalNodesFound++;
@@ -752,7 +784,7 @@ public class BreadboardStateUtils : MonoBehaviour
                 clearedCount++;
             }
         }
-        
+
         Debug.Log($"Found {totalNodesFound} total nodes in group {nodeGroup.name}, cleared {clearedCount} occupied nodes");
     }
 
@@ -874,14 +906,14 @@ public class BreadboardStateUtils : MonoBehaviour
         {
             resistorCounter++;
             string resistorId = $"resistor{resistorCounter}";
-            
+
             BreadboardComponentData resistor = new BreadboardComponentData
             {
                 type = "resistor",
                 resistorPin1 = pin1,
                 resistorPin2 = pin2
             };
-            
+
             myBreadboardController.CmdAddComponent(resistorId, resistor);
         }
         catch (Exception e)
@@ -897,11 +929,11 @@ public class BreadboardStateUtils : MonoBehaviour
             Debug.LogWarning("Invalid resistor configuration");
             return;
         }
-    
+
         GameObject newResistor = Instantiate(resistorComponent, parent);
         newResistor.name = name;
         Resistor resistorScript = newResistor.GetComponent<Resistor>();
-    
+
         if (resistorScript != null)
         {
             resistorScript.Initialize(resistor.resistorPin1, resistor.resistorPin2, parent.parent);

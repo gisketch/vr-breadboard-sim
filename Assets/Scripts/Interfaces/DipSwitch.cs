@@ -102,7 +102,16 @@ public class DipSwitch : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
             }
             else if (InputManager.Instance.GetSecondaryButtonDown())
             {
-                if (pin1.isOccupied) BreadboardStateUtils.Instance.RemoveComponentWithNode(pin1.name);
+                Debug.Log($"[DipSwitch] Secondary button pressed, pin1.isOccupied: {pin1.isOccupied}");
+                if (pin1.isOccupied)
+                {
+                    Debug.Log($"[DipSwitch] Calling RemoveComponentWithNode for {pin1.name}");
+                    BreadboardStateUtils.Instance.RemoveComponentWithNode(pin1.name);
+                }
+                else
+                {
+                    Debug.Log($"[DipSwitch] Pin1 {pin1.name} is not occupied, skipping removal");
+                }
             }
         }
     }

@@ -83,8 +83,11 @@ namespace Mirror
             NetworkServer.AddPlayerForConnection(conn, player);
 
             // If student, also spawn a breadboard
+#if UNITY_EDITOR
+            if (true)
+#else
             if (role == GameManager.UserRole.Student)
-            // if (true)
+#endif
             {
                 int spawnIndex = FindAvailableBreadboardSpot();
                 breadboardSpotOccupied[spawnIndex] = true;
