@@ -116,6 +116,11 @@ public class DipSwitch : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
         }
     }
 
+    public void SetState(bool state)
+    {
+        UpdateState(state);
+    }
+
     public void Remove()
     {
     }

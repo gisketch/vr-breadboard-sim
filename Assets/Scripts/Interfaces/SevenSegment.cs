@@ -51,7 +51,7 @@ public class SevenSegment : MonoBehaviour
         UpdateSegmentLights(segments);
     }
 
-    private void UpdateSegmentLights(Dictionary<string, bool> segments)
+    public void UpdateSegmentLights(Dictionary<string, bool> segments)
     {
         // Check if each segment should be active and update accordingly
         if (segments.ContainsKey("A"))
@@ -76,7 +76,7 @@ public class SevenSegment : MonoBehaviour
             segmentG.SetActive(segments["G"]);
 
         if (segments.ContainsKey("DP"))
-             segmentDP.SetActive(segments["DP"]);
+            segmentDP.SetActive(segments["DP"]);
     }
 
     private Node FindNodeRecursively(Transform parent, string nodeName)

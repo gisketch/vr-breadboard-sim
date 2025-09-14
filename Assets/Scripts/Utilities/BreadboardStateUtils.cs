@@ -9,6 +9,64 @@ using System.Text.RegularExpressions;
 
 public class BreadboardStateUtils : MonoBehaviour
 {
+    // Lightweight registries for caching and last-state tracking
+    private static class NodeCacheRegistry
+    {
+        private static readonly Dictionary<Transform, Dictionary<string, Node>> Cache =
+            new Dictionary<Transform, Dictionary<string, Node>>();
+
+        public static Dictionary<string, Node> GetOrBuild(Transform breadboardTransform)
+        {
+            if (breadboardTransform == null) return new Dictionary<string, Node>();
+            if (Cache.TryGetValue(breadboardTransform, out var map) && map != null && map.Count > 0)
+                return map;
+
+            map = Build(breadboardTransform);
+            Cache[breadboardTransform] = map;
+            return map;
+        }
+
+        public static void Invalidate(Transform breadboardTransform)
+        {
+            if (breadboardTransform != null) Cache.Remove(breadboardTransform);
+        }
+
+        private static Dictionary<string, Node> Build(Transform root)
+        {
+            var map = new Dictionary<string, Node>(1024);
+            string[] groups = new[] { "PowerRailLeft", "PowerRailRight", "NodesLeft", "NodesRight" };
+            foreach (var g in groups)
+            {
+                var tr = root.Find(g);
+                if (tr == null) continue;
+                var nodes = tr.GetComponentsInChildren<Node>(true);
+                foreach (var n in nodes)
+                {
+                    if (n != null && !string.IsNullOrEmpty(n.name))
+                        map[n.name] = n;
+                }
+            }
+            return map;
+        }
+    }
+    private static class BreadboardDiffStateRegistry
+    {
+        private static readonly Dictionary<BreadboardController, HashSet<string>> LastOccupied =
+            new Dictionary<BreadboardController, HashSet<string>>();
+
+        public static HashSet<string> GetLastOccupied(BreadboardController bc)
+        {
+            if (bc == null) return null;
+            if (LastOccupied.TryGetValue(bc, out var set)) return new HashSet<string>(set);
+            return new HashSet<string>();
+        }
+
+        public static void SetLastOccupied(BreadboardController bc, HashSet<string> set)
+        {
+            if (bc == null) return;
+            LastOccupied[bc] = new HashSet<string>(set);
+        }
+    }
     public static BreadboardStateUtils Instance { get; private set; }
     public BreadboardController myBreadboardController;
 
@@ -383,70 +441,194 @@ public class BreadboardStateUtils : MonoBehaviour
         // Create/find Components parent
         Transform componentsParent = GetOrCreateComponentsParent(bc);
 
-        // Clear all node occupancies
-        ClearAllNodeOccupancies(bc);
+        // Build/Get node cache for fast lookups
+        Transform breadboardTransform = bc.transform.Find("Breadboard");
+        var nodeMap = NodeCacheRegistry.GetOrBuild(breadboardTransform);
 
-        // Clear existing visualization
-        ClearComponentsParent(componentsParent);
+        // Build existing children map (snapshot)
+        Dictionary<string, Transform> childByName = new Dictionary<string, Transform>(componentsParent.childCount);
+        for (int i = 0; i < componentsParent.childCount; i++)
+        {
+            Transform child = componentsParent.GetChild(i);
+            if (child != null && !childByName.ContainsKey(child.name))
+                childByName[child.name] = child;
+        }
 
-        // Yield after cleanup operations
+        // Determine desired component keys
+        HashSet<string> desiredKeys = new HashSet<string>();
+        foreach (var kvp in bc.breadboardComponents)
+            desiredKeys.Add(kvp.Key);
+
+        // Remove visuals that no longer exist in state
+        int ops = 0;
+        List<string> toRemove = new List<string>();
+        foreach (var kv in childByName)
+        {
+            if (!desiredKeys.Contains(kv.Key))
+                toRemove.Add(kv.Key);
+        }
+        foreach (var removeKey in toRemove)
+        {
+            if (childByName.TryGetValue(removeKey, out var tr))
+            {
+                Destroy(tr.gameObject);
+                ops++;
+                if (ops % 10 == 0) yield return null; // spread destroy cost
+            }
+        }
+
+        // IMPORTANT: let Unity process the destroys and update the hierarchy,
+        // then rebuild the child map so we don't treat destroyed objects as existing.
         yield return null;
 
-        // Always run simulation to ensure UI is updated, even with no components
-        var simulator = bc.GetSimulatorInstance();
-        if (simulator != null)
+        childByName.Clear();
+        for (int i = 0; i < componentsParent.childCount; i++)
         {
-            // Convert SyncDictionary to JSON for simulation
-            string breadboardStateJson = ConvertStateToJson(bc.breadboardComponents);
+            Transform child = componentsParent.GetChild(i);
+            if (child != null && !childByName.ContainsKey(child.name))
+                childByName[child.name] = child;
+        }
 
-            Debug.Log($"Running breadboard simulation for student {bc.studentId} (async)...");
-            BreadboardSimulator.SimulationResult result = null;
+        // Run simulation to compute component states asynchronously
+        var simulator = bc.GetSimulatorInstance();
+        if (simulator == null)
+        {
+            Debug.LogError($"BreadboardSimulator instance not found for controller {bc.studentId}!");
+            yield break;
+        }
 
-            // Run the simulation asynchronously to avoid blocking the frame
-            yield return StartCoroutine(simulator.RunCoroutine(breadboardStateJson, bc, r => result = r));
+        string breadboardStateJson = ConvertStateToJson(bc.breadboardComponents);
+        BreadboardSimulator.SimulationResult result = null;
+        yield return StartCoroutine(simulator.RunCoroutine(breadboardStateJson, bc, r => result = r));
 
-            // Handle the result
-            if (result != null)
+        if (result == null)
+        {
+            Debug.LogError("Simulation failed to produce a result.");
+            yield break;
+        }
+
+        // Create or update visuals
+        ops = 0;
+        foreach (var kvp in bc.breadboardComponents)
+        {
+            string componentKey = kvp.Key;
+            BreadboardComponentData component = kvp.Value;
+
+            bool exists = childByName.TryGetValue(componentKey, out Transform existingTr);
+            if (exists && existingTr != null)
             {
-                if (result.Errors.Count > 0)
+                // Update-in-place for supported components
+                if (component.type == "led")
                 {
-                    Debug.LogWarning($"Simulation completed with {result.Errors.Count} errors");
-                }
-                else
-                {
-                    Debug.Log("Simulation completed successfully");
-                }
-
-                // Only create visual components if there are components to visualize
-                if (bc.breadboardComponents.Count > 0)
-                {
-                    // Create visual components
-                    foreach (var kvp in bc.breadboardComponents)
+                    if (result.ComponentStates.TryGetValue(componentKey, out object ledStateObj) && ledStateObj != null)
                     {
-                        string componentKey = kvp.Key;
-                        BreadboardComponentData component = kvp.Value;
-                        HandleComponentVisualization(componentKey, component, componentsParent, result.ComponentStates);
+                        bool isOn = false;
+                        var prop = ledStateObj.GetType().GetProperty("isOn");
+                        if (prop != null) isOn = (bool)prop.GetValue(ledStateObj);
+                        var ledComp = existingTr.GetComponent<LED>();
+                        if (ledComp != null) ledComp.SetIsOn(isOn);
+                    }
+                }
+                else if (component.type == "sevenSeg")
+                {
+                    Dictionary<string, bool> segments = new Dictionary<string, bool>();
+                    try
+                    {
+                        if (result.ComponentStates.TryGetValue(componentKey, out object segStateObj) && segStateObj != null)
+                        {
+                            JObject segmentState = JObject.FromObject(segStateObj);
+                            JObject segmentsObj = segmentState["segments"] as JObject;
+                            if (segmentsObj != null)
+                            {
+                                foreach (var p in segmentsObj.Properties())
+                                    segments[p.Name] = p.Value.Value<bool>();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Error parsing seven segment state: {ex.Message}");
                     }
 
-                    // FIXED: Mark nodes as occupied after creating components
-                    HashSet<string> occupiedNodes = CollectOccupiedNodes(bc.breadboardComponents);
-                    MarkOccupiedNodes(bc, occupiedNodes);
-                    Debug.Log($"Marked {occupiedNodes.Count} nodes as occupied after component creation");
+                    var segComp = existingTr.GetComponent<SevenSegment>();
+                    if (segComp != null) segComp.UpdateSegmentLights(segments);
                 }
-                else
+                else if (component.type == "dipSwitch")
                 {
-                    Debug.Log("No components to visualize, but UI has been updated");
+                    // Keep Dip Switch visual in sync
+                    bool isOn = component.isOn; // fallback to saved data
+                    if (result.ComponentStates.TryGetValue(componentKey, out object switchStateObj) && switchStateObj != null)
+                    {
+                        var prop = switchStateObj.GetType().GetProperty("isOn");
+                        if (prop != null)
+                        {
+                            try { isOn = (bool)prop.GetValue(switchStateObj); } catch { /* ignore */ }
+                        }
+                    }
+
+                    var dipComp = existingTr.GetComponent<DipSwitch>();
+                    if (dipComp != null) dipComp.SetState(isOn);
                 }
+
+                // Wires/ICs/Resistors are kept unless their topology changes; if needed, detect and recreate here.
             }
             else
             {
-                Debug.LogError("Simulation failed to produce a result.");
+                // Create new visual if it doesn't exist
+                HandleComponentVisualization(componentKey, component, componentsParent, result.ComponentStates);
+                ops++;
+                if (ops % 5 == 0) yield return null; // spread instantiate cost
             }
         }
+
+        // Delta node occupancy update
+        HashSet<string> newOccupied = CollectOccupiedNodes(bc.breadboardComponents);
+        UpdateNodeOccupanciesDelta(bc, breadboardTransform, newOccupied);
+
+        if (result.Errors.Count > 0)
+            Debug.LogWarning($"Simulation completed with {result.Errors.Count} errors");
         else
+            Debug.Log("Simulation completed successfully");
+    }
+
+    // Delta marking to avoid clearing all nodes each placement
+    private void UpdateNodeOccupanciesDelta(BreadboardController bc, Transform breadboardTransform, HashSet<string> newOccupied)
+    {
+        var last = BreadboardDiffStateRegistry.GetLastOccupied(bc);
+        if (last == null) last = new HashSet<string>();
+
+        // toClear = last - new
+        HashSet<string> toClear = new HashSet<string>(last);
+        toClear.ExceptWith(newOccupied);
+
+        // toSet = new - last
+        HashSet<string> toSet = new HashSet<string>(newOccupied);
+        toSet.ExceptWith(last);
+
+        var nodeMap = NodeCacheRegistry.GetOrBuild(breadboardTransform);
+
+        int ops = 0;
+        foreach (var n in toClear)
         {
-            Debug.LogError($"BreadboardSimulator instance not found for controller {bc.studentId}!");
+            if (nodeMap.TryGetValue(n, out var node) && node != null)
+            {
+                node.ClearOccupancy();
+                ops++;
+                if (ops % 50 == 0) { /* not yielding here; cheap operations */ }
+            }
         }
+
+        foreach (var n in toSet)
+        {
+            if (nodeMap.TryGetValue(n, out var node) && node != null)
+            {
+                node.Occupy();
+                ops++;
+                if (ops % 50 == 0) { /* not yielding */ }
+            }
+        }
+
+        BreadboardDiffStateRegistry.SetLastOccupied(bc, newOccupied);
     }
 
     // Convert SyncDictionary to JSON format expected by simulator
